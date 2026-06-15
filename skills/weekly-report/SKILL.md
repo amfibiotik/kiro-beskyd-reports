@@ -35,8 +35,12 @@ description: "Generate weekly work report and save to Google Sheets. Use when: w
   - Friday = Monday + 4 days
 
 ### Holidays:
-- Read `~/.kiro/holidays-2026.yaml` for official non-working days
-- Skip these dates when generating report (don't ask user what they did)
+- Determine current year from `date` output
+- Read `~/.kiro/holidays-{YYYY}.yaml` (e.g. `holidays-2026.yaml`)
+- If file exists: skip holiday dates when generating report
+- If file does NOT exist:
+  - January 1 is always a holiday regardless
+  - After January 2: ask user "Файл holidays-{YYYY}.yaml відсутній. Можливо, забули оновити? Можу допомогти створити."
 - When starting a session, proactively mention if there's a holiday this week
 
 ### Missing days (no work-log, no Jira activity):

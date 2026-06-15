@@ -49,10 +49,12 @@ See [google/GOOGLE_SETUP.md](google/GOOGLE_SETUP.md) for detailed instructions o
 
 ## Updating Holidays
 
-Edit `shared/holidays-2026.yaml` and re-run:
+Holidays file is year-specific: `~/.kiro/holidays-{YYYY}.yaml`. Once your company approves the next year's holiday list, create a new file:
 ```bash
 cp shared/holidays-2026.yaml ~/.kiro/holidays-2026.yaml
 ```
+
+If the file for the current year is missing after January 2, the skill will remind you to add it.
 
 ## Files Overview
 
