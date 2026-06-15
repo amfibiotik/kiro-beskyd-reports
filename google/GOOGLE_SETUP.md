@@ -1,6 +1,6 @@
 # Google Setup Guide
 
-Step-by-step guide to set up Google integration for `/weekly-report-v2`.
+Step-by-step guide to set up Google integration for `/weekly-report`.
 
 ## Overview
 
@@ -99,7 +99,7 @@ Run `bash setup.sh` and provide these when prompted.
 
 After setup, test with Kiro CLI:
 ```
-> weekly report v2 current week
+> weekly report current week
 ```
 
 It should:

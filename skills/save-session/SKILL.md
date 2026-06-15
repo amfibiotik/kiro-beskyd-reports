@@ -1,15 +1,14 @@
 ---
-name: save-session-v2
-description: "Save session v2: summary + full dialogue. Use when: save session v2, зберегти розмову, save dialogue, save full session."
+name: save-session
+description: "Save session: summary + full dialogue. Use when: save session, зберегти розмову, save dialogue, save full session."
 ---
 
-# Save Session v2
+# Save Session
 
-Extended version of save-session. Saves both a summary (for reports) and the full dialogue (for long-term analysis).
+Extended save-session. Saves both a summary (for reports) and the full dialogue (for long-term analysis).
 
 ## When to Invoke
-- User explicitly says "save session v2", "зберегти розмову", "save full"
-- NOT triggered by the regular "save session" command (that stays with v1)
+- User explicitly says "save session", "зберегти розмову", "save full"
 
 ## Config
 Read `~/.kiro/work-config.yaml` for project context.

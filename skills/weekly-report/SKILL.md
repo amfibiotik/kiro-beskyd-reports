@@ -1,12 +1,12 @@
 ---
-name: weekly-report-v2
-description: "Generate weekly work report and save to Google Sheets. Use when: weekly report v2, звіт v2, report to sheets."
+name: weekly-report
+description: "Generate weekly work report and save to Google Sheets. Use when: weekly report, звіт за тиждень, report to sheets."
 ---
 
-# Weekly Report v2
+# Weekly Report
 
 ## When to Invoke
-- User says "weekly report v2", "звіт v2", "report to sheets"
+- User says "weekly report", "звіт за тиждень", "report to sheets"
 - With date parameter (any of these formats):
   - `last week` / `минулий тиждень` — previous Mon-Fri
   - `current week` / `this week` / `цей тиждень` / `поточний тиждень` — current week Mon-Fri (even if incomplete)
@@ -55,7 +55,7 @@ Read `~/.kiro/work-config.yaml` for:
 
 ## Google Sheets Folder Structure
 
-Read folder registry from `~/.kiro/skills/weekly-report-v2/folders.yaml`.
+Read folder registry from `~/.kiro/skills/weekly-report/folders.yaml`.
 This file maps month folder IDs for the current year.
 
 Format:

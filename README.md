@@ -1,8 +1,8 @@
-# Kiro Weekly Setup
+# Kiro Beskyd Reports
 
 Automated setup for two Kiro CLI skills:
-- `/save-session-v2` — saves session summary + full dialogue to project files and work log
-- `/weekly-report-v2` — generates weekly work reports and saves them to Google Sheets
+- `/save-session` — saves session summary + full dialogue to project files and work log
+- `/weekly-report` — generates weekly work reports and saves them to Google Sheets
 
 ## Prerequisites
 
@@ -13,8 +13,8 @@ Automated setup for two Kiro CLI skills:
 ## Quick Start
 
 ```bash
-git clone <this-repo>
-cd kiro-weekly-setup
+git clone git@github.com:amfibiotik/kiro-beskyd-reports.git
+cd kiro-beskyd-reports
 bash setup.sh
 ```
 
@@ -31,8 +31,8 @@ The script will guide you through:
 ```
 ~/.kiro/
 ├── skills/
-│   ├── save-session-v2/SKILL.md
-│   └── weekly-report-v2/
+│   ├── save-session/SKILL.md
+│   └── weekly-report/
 │       ├── SKILL.md
 │       └── folders.yaml          ← generated
 ├── work-config.yaml              ← generated

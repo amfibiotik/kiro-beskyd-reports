@@ -8,7 +8,7 @@ echo ""
 echo "👋 Kiro Weekly Report Setup"
 echo "============================"
 echo ""
-echo "This will install /save-session-v2 and /weekly-report-v2 skills."
+echo "This will install /save-session and /weekly-report skills."
 echo "Make sure you've completed google/GOOGLE_SETUP.md steps 1-5 first."
 echo ""
 
@@ -47,13 +47,13 @@ echo "Step 4/4: Installing..."
 echo "-----------------------"
 
 # Create directories
-mkdir -p "$KIRO_DIR/skills/save-session-v2"
-mkdir -p "$KIRO_DIR/skills/weekly-report-v2"
+mkdir -p "$KIRO_DIR/skills/save-session"
+mkdir -p "$KIRO_DIR/skills/weekly-report"
 mkdir -p "$KIRO_DIR/work-log"
 
 # Copy skills
-cp "$SCRIPT_DIR/skills/save-session-v2/SKILL.md" "$KIRO_DIR/skills/save-session-v2/SKILL.md"
-cp "$SCRIPT_DIR/skills/weekly-report-v2/SKILL.md" "$KIRO_DIR/skills/weekly-report-v2/SKILL.md"
+cp "$SCRIPT_DIR/skills/save-session/SKILL.md" "$KIRO_DIR/skills/save-session/SKILL.md"
+cp "$SCRIPT_DIR/skills/weekly-report/SKILL.md" "$KIRO_DIR/skills/weekly-report/SKILL.md"
 echo "  ✓ Skills installed"
 
 # Copy holidays
@@ -74,7 +74,7 @@ EOF
 echo "  ✓ work-config.yaml created"
 
 # Generate folders.yaml
-cat > "$KIRO_DIR/skills/weekly-report-v2/folders.yaml" << EOF
+cat > "$KIRO_DIR/skills/weekly-report/folders.yaml" << EOF
 apps_script_url: "${APPS_SCRIPT_URL}"
 root_folder_id: "${ROOT_FOLDER_ID}"
 year: 2026
@@ -86,11 +86,11 @@ echo ""
 echo "🎉 Done!"
 echo ""
 echo "Files created:"
-echo "  $KIRO_DIR/skills/save-session-v2/SKILL.md"
-echo "  $KIRO_DIR/skills/weekly-report-v2/SKILL.md"
-echo "  $KIRO_DIR/skills/weekly-report-v2/folders.yaml"
+echo "  $KIRO_DIR/skills/save-session/SKILL.md"
+echo "  $KIRO_DIR/skills/weekly-report/SKILL.md"
+echo "  $KIRO_DIR/skills/weekly-report/folders.yaml"
 echo "  $KIRO_DIR/work-config.yaml"
 echo "  $KIRO_DIR/holidays-2026.yaml"
 echo ""
-echo "Try it: open Kiro CLI and say 'weekly report v2 current week'"
+echo "Try it: open Kiro CLI and say 'weekly report current week'"
 echo ""

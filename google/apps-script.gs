@@ -7,7 +7,7 @@
  * 3. Deploy → New deployment → Web app
  *    - Execute as: Me (your account)
  *    - Who has access: Anyone
- * 4. Copy deployment URL → paste into ~/.kiro/skills/weekly-report-v2/folders.yaml as apps_script_url
+ * 4. Copy deployment URL → paste into ~/.kiro/skills/weekly-report/folders.yaml as apps_script_url
  *
  * API:
  *   POST {url}
