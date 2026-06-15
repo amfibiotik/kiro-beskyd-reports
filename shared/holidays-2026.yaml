@@ -1,0 +1,37 @@
+# Official Ukrainian holidays 2026 (approved by management)
+# Used by weekly-report skills to skip non-working days
+# Format: YYYY-MM-DD (only weekday holidays matter for reports; weekend ones listed for reference)
+
+holidays:
+  - date: 2026-01-01
+    name: "New Year's Day"
+  - date: 2026-03-08
+    name: "Women's Day"
+    note: "Sunday — holiday moved to Monday"
+  - date: 2026-03-09
+    name: "Women's Day Holiday"
+  - date: 2026-04-12
+    name: "Easter Sunday"
+  - date: 2026-04-13
+    name: "Easter Monday"
+  - date: 2026-05-01
+    name: "Labor Day"
+  - date: 2026-05-08
+    name: "Victory Day over Nazism in World War II"
+  - date: 2026-05-31
+    name: "Orthodox Whit Sunday"
+  - date: 2026-06-01
+    name: "Orthodox Whit Monday"
+  - date: 2026-06-28
+    name: "Constitution Day"
+    note: "Sunday — holiday moved to Monday"
+  - date: 2026-06-29
+    name: "Constitution Day Holiday"
+  - date: 2026-07-15
+    name: "Day of Ukrainian Statehood"
+  - date: 2026-08-24
+    name: "Independence Day"
+  - date: 2026-10-01
+    name: "Defender's Day"
+  - date: 2026-12-25
+    name: "Christmas Day"
