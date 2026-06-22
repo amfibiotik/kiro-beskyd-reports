@@ -180,3 +180,5 @@ Save the final report to `~/.kiro/work-log/reports/YYYY-MM-DD-weekly.md` for ref
 - Only ONE sheet per spreadsheet (Sheet1) — no extra sheets
 - The spreadsheet should contain ONLY the report data (no formulas, no extra formatting) so Excel export is clean
 - **Business value justification**: If an activity is NOT a Jira ticket or planned company task (e.g., workspace setup, personal tooling, automation skills, productivity improvements), add a brief parenthetical explaining its value to the company.
+- **No raw technical metrics in Details**: Do not include raw numbers, file counts, byte sizes, or internal diagnostic data (e.g., "27 files, 120KB"). Report the action and outcome only (e.g., "audited S3 cache, no action needed"). The report audience is management, not engineers.
+- **One ticket per line in Details cell**: Each new ticket mention (FOTL-XXXX, CRUE-XXXX, etc.) starts on a new line (`\n`) within the same cell. This improves readability in the spreadsheet.
