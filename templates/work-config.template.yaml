@@ -9,3 +9,12 @@ projects:
   __PROJECT_KEY__: "__PROJECT_NAME__"
 work_log_dir: "~/.kiro/work-log"
 sessions_dir: ".planning/sessions"
+
+# How to save reports to Google Sheets.
+# Ask the user: "Do you organize reports in monthly subfolders, one folder for everything, or not use Google Sheets at all?"
+#
+# Options:
+#   monthly_folders — creates subfolders per month (e.g. "06-June/") inside root_folder_id
+#   single_folder  — saves all reports directly into root_folder_id, no subfolders
+#   none           — skip Google Sheets entirely, only show report in terminal + save local file
+sheets_mode: "monthly_folders"

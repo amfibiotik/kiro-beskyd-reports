@@ -36,10 +36,30 @@ echo ""
 # --- Step 3: Google config ---
 echo "Step 3/4: Google integration"
 echo "----------------------------"
-echo "  (See google/GOOGLE_SETUP.md if you haven't done this yet)"
+echo "  How do you want to save reports?"
+echo "    1) Monthly subfolders (e.g. 06-June/)"
+echo "    2) Single folder (everything in one place)"
+echo "    3) No Google Sheets (terminal + local file only)"
 echo ""
-read -p "  Apps Script Web App URL: " APPS_SCRIPT_URL
-read -p "  Root Drive folder ID: " ROOT_FOLDER_ID
+read -p "  Choose (1/2/3): " SHEETS_CHOICE
+
+case $SHEETS_CHOICE in
+  1) SHEETS_MODE="monthly_folders" ;;
+  2) SHEETS_MODE="single_folder" ;;
+  3) SHEETS_MODE="none" ;;
+  *) SHEETS_MODE="monthly_folders" ;;
+esac
+
+if [[ "$SHEETS_MODE" != "none" ]]; then
+  echo ""
+  echo "  (See google/GOOGLE_SETUP.md if you haven't done this yet)"
+  echo ""
+  read -p "  Apps Script Web App URL: " APPS_SCRIPT_URL
+  read -p "  Root Drive folder ID: " ROOT_FOLDER_ID
+else
+  APPS_SCRIPT_URL=""
+  ROOT_FOLDER_ID=""
+fi
 echo ""
 
 # --- Step 4: Install ---
@@ -70,17 +90,27 @@ default_hours: 8
 projects:
 $(echo -e "$PROJECTS")work_log_dir: "~/.kiro/work-log"
 sessions_dir: ".planning/sessions"
+
+# How reports are saved to Google Sheets:
+#   monthly_folders — subfolders per month inside root_folder_id
+#   single_folder  — all reports in root_folder_id directly
+#   none           — no Google Sheets, terminal + local file only
+sheets_mode: "${SHEETS_MODE}"
 EOF
 echo "  ✓ work-config.yaml created"
 
-# Generate folders.yaml
-cat > "$KIRO_DIR/skills/weekly-report/folders.yaml" << EOF
+# Generate folders.yaml (only if Google Sheets enabled)
+if [[ "$SHEETS_MODE" != "none" ]]; then
+  cat > "$KIRO_DIR/skills/weekly-report/folders.yaml" << EOF
 apps_script_url: "${APPS_SCRIPT_URL}"
 root_folder_id: "${ROOT_FOLDER_ID}"
 year: 2026
 months: {}
 EOF
-echo "  ✓ folders.yaml created"
+  echo "  ✓ folders.yaml created"
+else
+  echo "  ⏭ folders.yaml skipped (sheets_mode: none)"
+fi
 
 echo ""
 echo "🎉 Done!"

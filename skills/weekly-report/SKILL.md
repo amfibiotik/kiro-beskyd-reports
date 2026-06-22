@@ -125,11 +125,21 @@ If a day has work on multiple projects, create separate rows splitting hours (as
 
 ### Step 6: Save to Google Sheets
 
+**Check `sheets_mode` in `~/.kiro/work-config.yaml` first:**
+- `none` → skip this step entirely, go to Step 7
+- `single_folder` → save directly to `root_folder_id` (no month subfolders)
+- `monthly_folders` → use month subfolders (create if missing)
+
+If `sheets_mode` is not set in config, ask the user:
+> "Як ви зберігаєте звіти? (1) По місячних папках, (2) Все в одну папку, (3) Не зберігаю в Google Sheets"
+
 1. **Determine target folder(s)** from `folders.yaml`:
-   - Read the month number from the report's start date
-   - If cross-month (e.g. "27 April - 1 May"), the file goes in BOTH month folders
-   - Look up folder ID(s) from `folders.yaml`
-   - If a month folder doesn't exist yet, create it via Apps Script (see below)
+   - If `single_folder`: use `root_folder_id` directly
+   - If `monthly_folders`:
+     - Read the month number from the report's start date
+     - If cross-month (e.g. "27 April - 1 May"), the file goes in BOTH month folders
+     - Look up folder ID(s) from `folders.yaml`
+     - If a month folder doesn't exist yet, create it via Apps Script (see below)
 
 2. **Generate spreadsheet title**:
    - Same month: `Report by {full_name} DD - DD Month YYYY`
