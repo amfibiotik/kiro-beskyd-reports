@@ -52,8 +52,14 @@ The service account JSON path goes into the MCP config so that `update_cells` to
 
 ---
 
-## Step 4: Create Template Spreadsheet
+## Step 4: Template Spreadsheet
 
+**Beskyd team**: use the shared template (already has correct headers + formatting):
+- ID: `1QFF7_g70qDo7AFXVrfkn5Q-YodxcxWcjSXqqoMP-1hs`
+- [Open template](https://docs.google.com/spreadsheets/d/1QFF7_g70qDo7AFXVrfkn5Q-YodxcxWcjSXqqoMP-1hs/edit)
+- Share it with your service account email (Viewer is enough)
+
+**Or create your own**:
 1. Create a new Google Spreadsheet
 2. Set up the header row in A1:H1:
    ```
