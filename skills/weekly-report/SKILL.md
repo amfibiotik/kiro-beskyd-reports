@@ -1,12 +1,12 @@
 ---
 name: weekly-report
-description: "Generate weekly work report and save to Google Sheets. Use when: weekly report, звіт за тиждень, report to sheets."
+description: "Generate weekly work report and save to Google Sheets. Use when: weekly report, звіт, report to sheets."
 ---
 
 # Weekly Report
 
 ## When to Invoke
-- User says "weekly report", "звіт за тиждень", "report to sheets"
+- User says "weekly report", "звіт", "report to sheets"
 - With date parameter (any of these formats):
   - `last week` / `минулий тиждень` — previous Mon-Fri
   - `current week` / `this week` / `цей тиждень` / `поточний тиждень` — current week Mon-Fri (even if incomplete)
@@ -56,6 +56,7 @@ Read `~/.kiro/work-config.yaml` for:
 - `activity` (e.g. "Soft. Dev")
 - `default_hours` (e.g. 8)
 - `projects` mapping (e.g. FOTL → "AI QA Tool")
+- `full_name` (e.g. "Viktor Lyakhovych") — used in spreadsheet titles
 
 ## Google Sheets Folder Structure
 
@@ -89,12 +90,23 @@ For each day in range:
    - `jql: assignee = currentUser() AND updated >= "YYYY-MM-DD" AND updated < "YYYY-MM-DD+1"`
 3. If still no data, ask the user what they did that day
 
+### Step 2.1: Calendar Data (optional)
+If user says "з календарем" / "with calendar", or if `calendar_flow_url` exists in work-config:
+1. Ask user to:
+   - Open flow: `{calendar_flow_url}` (from work-config)
+   - Click "Run" (Запустити)
+   - Open OneDrive → `{calendar_onedrive_path}` → copy file contents
+   - Paste JSON here
+2. Parse the JSON: extract meetings where `isAllDay: false` and `showAs != "free"`
+3. Use meeting subjects to supplement Details column (e.g., "Meetings: Project Sync, 1-1 with Manager")
+4. Skip: canceled events (subject starts with "Canceled:"), all-day events (sick leaves, vacations), events where user is optional attendee
+
 ### Step 3: Generate Report Table
 Output format (tab-separated, ready for Google Sheets paste):
 
 ```
 Worker ID	Date	Activity	Task Name	Project	Details	Deliverables	Time
-CW-0011	06/08/2026	Soft. Dev	FOTL	AI QA Tool	FOTL-1236: designed feature X	Source Code, Object Code, Documentation	8
+CW-0011	06/08/2026	Soft. Dev	FOTL	AI QA Tool	FOTL-1236: designed Merged Allure Reports + Runs Tab feature	Source Code, Object Code, Documentation	8
 ```
 
 Last row (Total row):
@@ -112,7 +124,7 @@ Last row (Total row):
 | Task Name | Jira project key (FOTL, ECS, SIPBEE, etc.) |
 | Project | Human name from config `projects` mapping. If unknown key, ask user. |
 | Details | 1-2 sentences, English, start with ticket ID if applicable |
-| Deliverables | `Source Code, Object Code, Documentation` if code was written; `None` if research/setup/meetings only |
+| Deliverables | `Source Code, Object Code, Documentation` if code was written; `None` otherwise (research, meetings, demo prep, documentation-only days). **Only these two values** — never use partial combinations like "Documentation" or "Test Cases, Reports". |
 | Time | From config: `default_hours` (usually 8) |
 
 ### Step 4: Handle Multi-Project Days
@@ -125,29 +137,39 @@ If a day has work on multiple projects, create separate rows splitting hours (as
 
 ### Step 6: Save to Google Sheets
 
-**Check `sheets_mode` in `~/.kiro/work-config.yaml` first:**
-- `none` → skip this step entirely, go to Step 7
-- `single_folder` → save directly to `root_folder_id` (no month subfolders)
-- `monthly_folders` → use month subfolders (create if missing)
-
-If `sheets_mode` is not set in config, ask the user:
-> "Як ви зберігаєте звіти? (1) По місячних папках, (2) Все в одну папку, (3) Не зберігаю в Google Sheets"
-
 1. **Determine target folder(s)** from `folders.yaml`:
-   - If `single_folder`: use `root_folder_id` directly
-   - If `monthly_folders`:
-     - Read the month number from the report's start date
-     - If cross-month (e.g. "27 April - 1 May"), the file goes in BOTH month folders
-     - Look up folder ID(s) from `folders.yaml`
-     - If a month folder doesn't exist yet, create it via Apps Script (see below)
+   - Read the month number from the report's start date
+   - If cross-month (e.g. "27 April - 1 May"), the file goes in BOTH month folders
+   - Look up folder ID(s) from `folders.yaml`
+   - If a month folder doesn't exist yet, create it via Apps Script (see below)
 
 2. **Generate spreadsheet title**:
    - Same month: `Report by {full_name} DD - DD Month YYYY`
+     - Example: `Report by Viktor Lyakhovych 8 - 12 June 2026`
    - Cross-month: `Report by {full_name} DD Month - DD Month YYYY`
+     - Example: `Report by Viktor Lyakhovych 27 April - 1 May 2026`
    - `full_name` is read from `~/.kiro/work-config.yaml`
    - Use the END date's year in the title
 
-3. **Create spreadsheet via Apps Script Web App**:
+3. **Check if spreadsheet already exists (append mode)**:
+   - List spreadsheets in the target folder using `list_spreadsheets`
+   - Search for a spreadsheet with the EXACT title generated in step 2
+   - **If found** → this is an APPEND operation:
+     a. Read existing data with `get_sheet_data` (sheet: "Sheet1")
+     b. Parse existing rows — extract dates already present (skip header + Total row)
+     c. **Detect template placeholder rows**: rows where Date column is empty but other columns have template values (e.g., Deliverables pre-filled) are placeholders — treat them as empty, not as data to preserve
+     d. **NEVER modify existing DATA rows** (rows with a filled Date) — keep them exactly as-is, byte-for-byte
+     e. From the new report data, keep ONLY rows for dates NOT already in the spreadsheet
+     f. If no new dates to add → inform user "Цей тиждень вже повністю в звіті, нових днів нема" and stop
+     g. Merge: existing data rows (with dates) + new data rows, sort all by date
+     h. Recalculate Total (sum of ALL hours — old + new)
+     i. Write: header + data rows + Total row. **No empty rows between data and Total.** Total row count = actual working days only.
+     j. Use `update_cells` with range `A1:H{new_last_row}`
+     k. **Clean up leftover rows**: if old spreadsheet had more rows (e.g., template with 5 placeholder rows), clear any rows below the new last row
+     l. Report: "Дописав {N} днів до існуючого звіту: {url}"
+   - **If not found** → this is a CREATE operation (proceed to step 4)
+
+4. **Create spreadsheet via Apps Script Web App** (only if step 3 determined CREATE):
    - Read `apps_script_url` from `folders.yaml`
    - Call Apps Script using two-step curl (Google redirects POST to a response URL):
      ```bash
@@ -161,34 +183,39 @@ If `sheets_mode` is not set in config, ask the user:
    - Response: `{"spreadsheet_id": "...", "url": "..."}`
    - This creates the file owned by user's account (no quota issues)
 
-4. **Write data** using `update_cells` (MCP tool, works via service account with shared access):
+5. **Write data** using `update_cells` (MCP tool, works via service account with shared access):
    - Row 1: headers `["Worker ID", "Date", "Activity ", "Task Name", "Project", "Details", "Deliverables", "Time"]`
      - Note: "Activity " has a trailing space (matches existing format)
    - Rows 2-N: data rows
    - Last row: Total row — empty cells for columns A-F, "Total" in G, sum in H
    - Range: `A1:H{last_row}`
+   - **CRITICAL: Date values must be prefixed with apostrophe** (`'07/01/2026`) to force Google Sheets to treat them as text. Without this, Sheets may auto-detect dates and reformat them according to the document's locale (e.g., DD/MM/YYYY instead of MM/DD/YYYY).
+   - **CRITICAL: Total row position** — the Total row MUST be exactly N+1 where N = number of data rows (immediately after the last day). Never leave empty rows between data and Total. If a week has fewer than 5 working days (holidays, sick leave), the report has fewer rows — Total still goes right after the last day.
 
-5. **For cross-month reports**: create the same spreadsheet in both month folders
-   (two separate Apps Script calls with different folder IDs, same data written to each)
+6. **For cross-month reports**: create/update the spreadsheet in BOTH month folders
+   - Check each folder independently (one may already have it, the other may not)
+   - Apply the same append-or-create logic per folder
+   - **CRITICAL: Use identical data arrays** for both copies — build the data once, write to both. Never construct data separately for each folder (risks divergence).
 
-6. **Creating new month folders** (when needed):
+7. **Creating new month folders** (when needed):
    - Use same two-step curl pattern with:
      `{"action": "create_folder", "name": "07-July", "parent_id": "{root_folder_id}"}`
    - Response: `{"folder_id": "...", "name": "..."}`
    - Update `folders.yaml` with the new month entry
 
-7. **Report success** with the spreadsheet URL(s)
+8. **Report success** with the spreadsheet URL(s)
 
 ### Step 7: Save Local Copy
 Save the final report to `~/.kiro/work-log/reports/YYYY-MM-DD-weekly.md` for reference.
 
 ## Important
 - All text in Details column must be in English
-- Date format in cells: `MM/DD/YYYY` (US format)
+- Date format in cells: `MM/DD/YYYY` (US format). **Always prefix with apostrophe** when writing to Google Sheets (`'07/01/2026`) to prevent locale-based date reformatting.
+- **Date validation**: Before writing ANY date, verify it's MM/DD/YYYY (month first, not day). If month position has value > 12 — it's clearly wrong. If ambiguous (e.g., `08/06/2026`) — cross-check against the week's expected dates. Alert user if a mismatch is detected in existing reports.
 - If work-log data is sparse, supplement from Jira and git log
 - Never fabricate work — if a day has no data, ask the user
 - Only ONE sheet per spreadsheet (Sheet1) — no extra sheets
 - The spreadsheet should contain ONLY the report data (no formulas, no extra formatting) so Excel export is clean
-- **Business value justification**: If an activity is NOT a Jira ticket or planned company task (e.g., workspace setup, personal tooling, automation skills, productivity improvements), add a brief parenthetical explaining its value to the company.
+- **Business value justification**: If an activity is NOT a Jira ticket or planned company task (e.g., workspace setup, personal tooling, automation skills, productivity improvements), add a brief parenthetical explaining its value to the company. Example: "Created reporting automation skill for use with Kiro CLI. (Within the scope of automating routine operations and possible long-term analysis of work patterns)."
 - **No raw technical metrics in Details**: Do not include raw numbers, file counts, byte sizes, or internal diagnostic data (e.g., "27 files, 120KB"). Report the action and outcome only (e.g., "audited S3 cache, no action needed"). The report audience is management, not engineers.
-- **One ticket per line in Details cell**: Each new ticket mention (FOTL-XXXX, CRUE-XXXX, etc.) starts on a new line (`\n`) within the same cell. This improves readability in the spreadsheet.
+- **One ticket per line in Details cell**: Each new ticket mention (FOTL-XXXX, CRUE-XXXX, etc.) starts on a new line within the same cell. This improves readability in the spreadsheet. **CRITICAL**: Use actual newline characters in the JSON data array (multi-line string), NOT literal `\n` escape sequences. Google Sheets renders real newlines as line breaks inside cells, but literal `\n` text shows as visible characters.
