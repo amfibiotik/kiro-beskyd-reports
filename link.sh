@@ -17,7 +17,7 @@ set -e
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 KIRO_SKILLS="$HOME/.kiro/skills"
 
-SKILLS=("weekly-report" "save-session")
+SKILLS=("weekly-report" "save-session" "monthly-report")
 
 echo ""
 echo "🔗 Linking ~/.kiro/skills → repo"

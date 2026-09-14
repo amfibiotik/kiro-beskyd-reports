@@ -1,8 +1,9 @@
 # Kiro Beskyd Reports
 
-Automated setup for two Kiro CLI skills:
+Automated setup for three Kiro CLI skills:
 - `/save-session` — saves session summary + full dialogue to project files and work log
 - `/weekly-report` — generates weekly work reports and saves them to Google Sheets
+- `/monthly-report` — aggregates the month's weekly reports into a single monthly report
 
 ## Prerequisites
 
@@ -40,6 +41,7 @@ See [INSTALL_WITH_AI.md](INSTALL_WITH_AI.md).
 ~/.kiro/
 ├── skills/
 │   ├── save-session/SKILL.md
+│   ├── monthly-report/SKILL.md
 │   └── weekly-report/
 │       ├── SKILL.md
 │       └── folders.yaml          ← generated (personal Drive IDs, gitignored)

@@ -8,7 +8,8 @@ user's terminal. If you are a human: open your agent in this repo folder and say
 
 ## Role
 
-You are installing the `weekly-report` and `save-session` Kiro skills into the
+You are installing the `weekly-report`, `monthly-report` and `save-session`
+Kiro skills into the
 **current user's** `~/.kiro` directory. You act as a guide: you cannot click
 inside the user's browser or Google account, so for every step that requires
 Google (Cloud Console, Drive, Apps Script) you explain what to do, wait for the
