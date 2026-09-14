@@ -26,6 +26,14 @@ The script will guide you through:
 5. Apps Script deployment
 6. Skill installation
 
+### Prefer to install with an AI agent?
+
+Setup has several manual Google steps. Instead of doing them alone, you can let
+your Kiro CLI agent guide you: open Kiro in this repo folder and say
+*"Read INSTALL_WITH_AI.md and install these skills for me."* The agent walks you
+through each step, collects the values, runs `setup.sh`, and verifies the result.
+See [INSTALL_WITH_AI.md](INSTALL_WITH_AI.md).
+
 ## What Gets Installed
 
 ```
@@ -66,6 +74,7 @@ If the file for the current year is missing after January 2, the skill will remi
 | File | Purpose |
 |------|---------|
 | `setup.sh` | Interactive setup script |
+| `INSTALL_WITH_AI.md` | AI-agent-guided install instructions (alternative to running setup.sh alone) |
 | `link.sh` | (Maintainers) Symlink `~/.kiro/skills` → this repo so edits sync back. Re-run after cloning to restore links. |
 | `skills/` | SKILL.md files (copied as-is) |
 | `templates/` | Config templates with placeholders |
