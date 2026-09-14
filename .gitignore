@@ -1,0 +1,21 @@
+# Personal, generated config — MUST NOT be committed.
+# These contain personal data (worker ID, name, Google Drive folder IDs,
+# Apps Script URL). Each user generates their own via setup.sh.
+folders.yaml
+work-config.yaml
+
+# Guard against these landing anywhere in the tree (e.g. if setup.sh is run
+# from inside a clone, or a real config is copied in for testing).
+**/folders.yaml
+**/work-config.yaml
+
+# Never ignore the templates — those are the safe, placeholder-only versions.
+!templates/folders.template.yaml
+!templates/work-config.template.yaml
+
+# Local report artifacts / logs that may contain real work data.
+*-weekly.md
+*.log
+
+# OS / editor noise
+.DS_Store

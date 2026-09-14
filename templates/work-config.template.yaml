@@ -7,8 +7,14 @@ activity: "Soft. Dev"
 default_hours: 8
 projects:
   __PROJECT_KEY__: "__PROJECT_NAME__"
-work_log_dir: "~/.kiro/work-log"
-sessions_dir: ".planning/sessions"
+
+# Where the skills read/write local data. Global dirs — independent of which
+# project directory the CLI was launched from.
+work_log_dir: "~/.kiro/work-planning/work-log"
+sessions_dir: "~/.kiro/work-planning/sessions"
+reports_dir: "~/.kiro/work-planning/reports"
+# Optional: old session location kept for historical lookups. Remove if unused.
+# legacy_sessions_dir: "~/some-old-project/.planning/sessions"
 
 # How to save reports to Google Sheets.
 # Ask the user: "Do you organize reports in monthly subfolders, one folder for everything, or not use Google Sheets at all?"

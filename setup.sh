@@ -55,10 +55,14 @@ if [[ "$SHEETS_MODE" != "none" ]]; then
   echo "  (See google/GOOGLE_SETUP.md if you haven't done this yet)"
   echo ""
   read -p "  Apps Script Web App URL: " APPS_SCRIPT_URL
-  read -p "  Root Drive folder ID: " ROOT_FOLDER_ID
+  read -p "  Template spreadsheet ID: " TEMPLATE_ID
+  read -p "  Root Drive folder ID (holds per-year subfolders): " ROOT_FOLDER_ID
+  read -p "  Current year folder ID (subfolder for $(date +%Y) inside root): " YEAR_FOLDER_ID
 else
   APPS_SCRIPT_URL=""
+  TEMPLATE_ID=""
   ROOT_FOLDER_ID=""
+  YEAR_FOLDER_ID=""
 fi
 echo ""
 
@@ -69,7 +73,9 @@ echo "-----------------------"
 # Create directories
 mkdir -p "$KIRO_DIR/skills/save-session"
 mkdir -p "$KIRO_DIR/skills/weekly-report"
-mkdir -p "$KIRO_DIR/work-log"
+mkdir -p "$KIRO_DIR/work-planning/work-log"
+mkdir -p "$KIRO_DIR/work-planning/sessions"
+mkdir -p "$KIRO_DIR/work-planning/reports"
 
 # Copy skills
 cp "$SCRIPT_DIR/skills/save-session/SKILL.md" "$KIRO_DIR/skills/save-session/SKILL.md"
@@ -88,8 +94,11 @@ full_name: "${FULL_NAME}"
 activity: "Soft. Dev"
 default_hours: 8
 projects:
-$(echo -e "$PROJECTS")work_log_dir: "~/.kiro/work-log"
-sessions_dir: ".planning/sessions"
+$(echo -e "$PROJECTS")
+# Global dirs — independent of which project directory the CLI was launched from
+work_log_dir: "~/.kiro/work-planning/work-log"
+sessions_dir: "~/.kiro/work-planning/sessions"
+reports_dir: "~/.kiro/work-planning/reports"
 
 # How reports are saved to Google Sheets:
 #   monthly_folders — subfolders per month inside root_folder_id
@@ -103,8 +112,10 @@ echo "  ✓ work-config.yaml created"
 if [[ "$SHEETS_MODE" != "none" ]]; then
   cat > "$KIRO_DIR/skills/weekly-report/folders.yaml" << EOF
 apps_script_url: "${APPS_SCRIPT_URL}"
+template_id: "${TEMPLATE_ID}"
 root_folder_id: "${ROOT_FOLDER_ID}"
-year: 2026
+year: $(date +%Y)
+year_folder_id: "${YEAR_FOLDER_ID}"
 months: {}
 EOF
   echo "  ✓ folders.yaml created"

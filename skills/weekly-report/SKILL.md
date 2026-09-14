@@ -47,6 +47,7 @@ description: "Generate weekly work report and save to Google Sheets. Use when: w
 - Ask: "На [date] немає даних. Можливо sick-leave / лікарняний?"
 - If user confirms sick-leave → skip that day entirely (no row in report)
 - If user says they worked → ask what they did
+- **NEVER offer a "don't remember / skip the day" option.** Every past working day was spent doing something — a day is either worked (ask what) or an official absence (sick-leave / vacation / day off). "Forgot" is not a valid outcome; keep asking until the day is accounted for.
 
 ### CRITICAL: Never guess dates. Always compute from `date` output.
 
@@ -56,18 +57,25 @@ Read `~/.kiro/work-config.yaml` for:
 - `activity` (e.g. "Soft. Dev")
 - `default_hours` (e.g. 8)
 - `projects` mapping (e.g. FOTL → "AI QA Tool")
-- `full_name` (e.g. "Viktor Lyakhovych") — used in spreadsheet titles
+- `full_name` (e.g. "John Doe") — used in spreadsheet titles
 
 ## Google Sheets Folder Structure
 
 Read folder registry from `~/.kiro/skills/weekly-report/folders.yaml`.
-This file maps month folder IDs for the current year.
+This file maps month folder IDs for the current year. It contains personal Drive
+IDs and is NOT committed to the repo — each user generates their own via setup.sh.
 
 Format:
 ```yaml
 apps_script_url: "https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec"
+template_id: "YOUR_TEMPLATE_ID"
+# root_folder_id = top-level reports folder; holds one subfolder per YEAR.
+# Month folders must NEVER be created directly here — they go inside year_folder_id.
 root_folder_id: "YOUR_ROOT_FOLDER_ID"
+# year = the year that year_folder_id and the months map below describe.
+# year_folder_id = the subfolder for that year inside root. All month folders live here.
 year: 2026
+year_folder_id: "YOUR_YEAR_FOLDER_ID"
 months:
   1: {id: "FOLDER_ID", name: "01-January"}
   2: {id: "FOLDER_ID", name: "02-February"}
@@ -84,11 +92,18 @@ When a new month folder is created, update this file with the new folder ID.
 - Skip weekends and known holidays
 
 ### Step 2: Gather Data
+Read paths from `~/.kiro/work-config.yaml`:
+- `work_log_dir` — daily logs (default: `~/.kiro/work-planning/work-log`)
+- `sessions_dir` — session summaries (default: `~/.kiro/work-planning/sessions`)
+- `legacy_sessions_dir` — old sessions (for historical data)
+
 For each day in range:
-1. Read `~/.kiro/work-log/YYYY-MM-DD.md` (primary source)
-2. If work-log is missing for a day, check Jira for tickets updated that day:
+1. Read `{work_log_dir}/YYYY-MM-DD.md` (primary source)
+2. Scan `{sessions_dir}/YYYY-MM-DD-*-summary.md` for additional context
+3. If work-log is missing for a day, also scan `{legacy_sessions_dir}/YYYY-MM-DD-*-summary.md`
+4. If still no data, check Jira for tickets updated that day:
    - `jql: assignee = currentUser() AND updated >= "YYYY-MM-DD" AND updated < "YYYY-MM-DD+1"`
-3. If still no data, ask the user what they did that day
+5. If still no data, ask the user what they did that day
 
 ### Step 2.1: Calendar Data (optional)
 If user says "з календарем" / "with calendar", or if `calendar_flow_url` exists in work-config:
@@ -138,16 +153,18 @@ If a day has work on multiple projects, create separate rows splitting hours (as
 ### Step 6: Save to Google Sheets
 
 1. **Determine target folder(s)** from `folders.yaml`:
+   - Read the report's year from the report's END date (same year used in the title)
+   - **Year check FIRST**: if the report's year != `year` in `folders.yaml`, perform **Year rollover** (see dedicated section below) before anything else. This creates the new year folder and resets the month map.
    - Read the month number from the report's start date
    - If cross-month (e.g. "27 April - 1 May"), the file goes in BOTH month folders
-   - Look up folder ID(s) from `folders.yaml`
-   - If a month folder doesn't exist yet, create it via Apps Script (see below)
+   - Look up folder ID(s) from `folders.yaml` `months` map
+   - If a month folder doesn't exist yet, create it via Apps Script inside `year_folder_id` (see step 8)
 
 2. **Generate spreadsheet title**:
    - Same month: `Report by {full_name} DD - DD Month YYYY`
-     - Example: `Report by Viktor Lyakhovych 8 - 12 June 2026`
+     - Example: `Report by John Doe 8 - 12 June 2026`
    - Cross-month: `Report by {full_name} DD Month - DD Month YYYY`
-     - Example: `Report by Viktor Lyakhovych 27 April - 1 May 2026`
+     - Example: `Report by John Doe 27 April - 1 May 2026`
    - `full_name` is read from `~/.kiro/work-config.yaml`
    - Use the END date's year in the title
 
@@ -181,9 +198,23 @@ If a day has work on multiple projects, create separate rows splitting hours (as
      curl -s "$REDIRECT_URL"
      ```
    - Response: `{"spreadsheet_id": "...", "url": "..."}`
-   - This creates the file owned by user's account (no quota issues)
+   - This creates the file owned by the user's account (no quota issues)
 
-5. **Write data** using `update_cells` (MCP tool, works via service account with shared access):
+5. **Trim unused rows** (only for CREATE, when data_rows < 5):
+   - The template always has 5 data row slots (rows 2-6) + Total (row 7)
+   - If this week has fewer than 5 working days (holiday, sick leave), call trim_rows BEFORE writing data:
+     ```bash
+     REDIRECT_URL=$(curl -s -o /dev/null -w "%{redirect_url}" -X POST "$APPS_SCRIPT_URL" \
+       -H "Content-Type: application/json" \
+       -d '{"action": "trim_rows", "spreadsheet_id": "...", "data_rows": 4}')
+     curl -s "$REDIRECT_URL"
+     ```
+   - Response: `{"spreadsheet_id": "...", "rows_deleted": 1, "total_rows": 6}`
+   - This removes empty placeholder rows so Total sits right after the last data row
+   - **Why before writing**: template rows have dropdown validation (Deliverables column). If Total lands on a row with validation, update_cells fails silently. Trimming first removes those validated cells.
+   - If data_rows == 5 → skip this step (no trimming needed)
+
+6. **Write data** using `update_cells` (MCP tool, works via service account with shared access):
    - Row 1: headers `["Worker ID", "Date", "Activity ", "Task Name", "Project", "Details", "Deliverables", "Time"]`
      - Note: "Activity " has a trailing space (matches existing format)
    - Rows 2-N: data rows
@@ -192,21 +223,55 @@ If a day has work on multiple projects, create separate rows splitting hours (as
    - **CRITICAL: Date values must be prefixed with apostrophe** (`'07/01/2026`) to force Google Sheets to treat them as text. Without this, Sheets may auto-detect dates and reformat them according to the document's locale (e.g., DD/MM/YYYY instead of MM/DD/YYYY).
    - **CRITICAL: Total row position** — the Total row MUST be exactly N+1 where N = number of data rows (immediately after the last day). Never leave empty rows between data and Total. If a week has fewer than 5 working days (holidays, sick leave), the report has fewer rows — Total still goes right after the last day.
 
-6. **For cross-month reports**: create/update the spreadsheet in BOTH month folders
+7. **For cross-month reports**: create/update the spreadsheet in BOTH month folders
    - Check each folder independently (one may already have it, the other may not)
    - Apply the same append-or-create logic per folder
    - **CRITICAL: Use identical data arrays** for both copies — build the data once, write to both. Never construct data separately for each folder (risks divergence).
 
-7. **Creating new month folders** (when needed):
+8. **Creating new month folders** (when needed):
+   - A month folder ALWAYS goes inside the current `year_folder_id` — NEVER inside `root_folder_id`.
    - Use same two-step curl pattern with:
-     `{"action": "create_folder", "name": "07-July", "parent_id": "{root_folder_id}"}`
+     `{"action": "create_folder", "name": "07-July", "parent_id": "{year_folder_id}"}`
+     (read `year_folder_id` from `folders.yaml`)
    - Response: `{"folder_id": "...", "name": "..."}`
-   - Update `folders.yaml` with the new month entry
+   - Update `folders.yaml` with the new month entry under `months`
 
-8. **Report success** with the spreadsheet URL(s)
+9. **Report success** with the spreadsheet URL(s)
+
+### Year Rollover (automatic, works for any future year)
+
+Triggered from Step 6.1 whenever a report's year does not match `year` in `folders.yaml`
+(e.g. first report of 2027, then 2028, and so on). Do NOT hardcode any specific year —
+always derive it from the report date. Steps:
+
+1. **Create the year folder** inside `root_folder_id` via Apps Script:
+   ```bash
+   REDIRECT_URL=$(curl -s -o /dev/null -w "%{redirect_url}" -X POST "$APPS_SCRIPT_URL" \
+     -H "Content-Type: application/json" \
+     -d '{"action": "create_folder", "name": "{YYYY}", "parent_id": "{root_folder_id}"}')
+   curl -s "$REDIRECT_URL"
+   ```
+   - `name` is the 4-digit year (e.g. `2027`); `parent_id` is `root_folder_id` from `folders.yaml`.
+   - Response: `{"folder_id": "...", "name": "..."}` — this new `folder_id` becomes the year folder.
+2. **Safety check before creating**: a folder with the same name may already exist (e.g. the user
+   created it manually). Prefer to reuse it rather than make a duplicate. If unsure whether one
+   already exists, ask the user for the year folder ID instead of blindly creating a second one.
+3. **Rewrite `folders.yaml`** for the new year:
+   - Set `year:` to the new year.
+   - Set `year_folder_id:` to the folder_id from step 1.
+   - Reset `months:` to empty (`months: {}`) — month folders will be created on demand as reports come in.
+   - Leave `root_folder_id`, `apps_script_url`, `template_id` unchanged.
+4. **Then continue** the normal flow: create the needed month folder inside the new `year_folder_id`
+   (Step 8), then create the spreadsheet.
+
+**Note on folder IDs and moving:** Google Drive folder IDs are permanent. Moving a folder only
+changes its parent, never its ID — so once `folders.yaml` records an ID, manual reorganizing in
+Drive does not break anything. This is why month/year folders must be created with the correct
+`parent_id` up front (year folder → inside root; month folder → inside year folder).
 
 ### Step 7: Save Local Copy
-Save the final report to `~/.kiro/work-log/reports/YYYY-MM-DD-weekly.md` for reference.
+Save the final report to `{reports_dir}/YYYY-WNN-weekly.md` (e.g. `2026-W29-weekly.md`) for reference.
+Read `reports_dir` from work-config.yaml (default: `~/.kiro/work-planning/reports`).
 
 ## Important
 - All text in Details column must be in English
