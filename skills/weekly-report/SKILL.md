@@ -21,7 +21,20 @@ description: "Generate weekly work report and save to Google Sheets. Use when: w
 1. Run `date` system command — NEVER rely on model's internal date knowledge
 2. If today is **Friday (day 5)** AND a saved session exists for today (`~/.kiro/work-log/YYYY-MM-DD.md`):
    → use **current week** (Mon-Fri of this week)
-3. Otherwise → use **previous week** (Mon-Fri of last week)
+3. If today is **Saturday or Sunday (day 6-7)** → use **current week** (the week that just ended, Mon-Fri)
+4. If today is **Mon-Thu (day 1-4)** → the request is ambiguous. Do NOT guess.
+   The user may want the previous (finished) week, OR the current incomplete week
+   (e.g. because the month ends mid-week and a monthly report needs those days, or
+   an upcoming vacation means the week must be submitted early — reasons the skill
+   cannot know). **ASK the user** which week they mean before proceeding:
+
+   > Сьогодні {day}, тиждень ще не закінчився. Який тиждень формуємо?
+   > 1 — поточний неповний тиждень (Пн-сьогодні: {mon}-{today})
+   > 2 — минулий тиждень, що вже завершився ({prev_mon}-{prev_fri})
+   > 3 — інший діапазон (вкажу дати)
+
+   Wait for the answer. If option 1 → current week Mon..today. If option 2 →
+   previous week Mon-Fri. If option 3 → use the dates the user gives.
 
 ### With `current week` / `цей тиждень` parameter:
 - Always use current week Mon-Fri regardless of what day it is
@@ -33,6 +46,24 @@ description: "Generate weekly work report and save to Google Sheets. Use when: w
   - Current week Monday = today - (day_of_week - 1) days
   - Previous week Monday = current week Monday - 7 days
   - Friday = Monday + 4 days
+
+### CRITICAL: Two distinct date concepts — do not confuse them
+The skill tracks TWO separate things:
+1. **Report days** — the actual working days that get ROWS in the table. For an
+   incomplete current week this is Mon..today (e.g. only 28, 29, 30). Holidays,
+   sick-leave, and future days are excluded.
+2. **Week bounds** — the ISO Monday and Friday of the week the report belongs to.
+   These are ALWAYS the full Mon and Fri, regardless of how many report days exist.
+
+**Week bounds drive the spreadsheet title and the target month folder(s); report
+days drive the table rows.** This separation is what lets a mid-week report and its
+later Friday completion land in the SAME spreadsheet (see Step 6.2 and append mode).
+
+Example — this week's report requested on Wed 30 Sep:
+- Report days: 28, 29, 30 Sep (3 rows)
+- Week bounds: Mon 28 Sep — Fri 2 Oct → title `... 28 September - 2 October 2026`,
+  folders = September AND October (cross-month). On Friday the same title is
+  regenerated, append adds 1 & 2 Oct to the same file.
 
 ### Holidays:
 - Determine current year from `date` output
@@ -155,21 +186,56 @@ If a day has work on multiple projects, create separate rows splitting hours (as
 1. **Determine target folder(s)** from `folders.yaml`:
    - Read the report's year from the report's END date (same year used in the title)
    - **Year check FIRST**: if the report's year != `year` in `folders.yaml`, perform **Year rollover** (see dedicated section below) before anything else. This creates the new year folder and resets the month map.
-   - Read the month number from the report's start date
-   - If cross-month (e.g. "27 April - 1 May"), the file goes in BOTH month folders
+   - Determine cross-month by the WEEK BOUNDS (Monday and Friday of the report's
+     ISO week), not by the days that happen to have rows. If Monday and Friday fall
+     in different months → this is a **cross-month week**.
+   - **CRITICAL — cross-month single-file rule (do NOT create two copies):**
+     A cross-month week's report lives in ONLY ONE folder at a time. Never write the
+     same report into both month folders — that creates divergent duplicates.
+     - **Ending month** = the month of the week's Monday (the month that is finishing).
+     - **New month** = the month of the week's Friday (the month that is starting).
+     - **CREATE (first run of the week, typically mid-week):** write the report ONLY
+       into the **ending month** folder. Additionally, create the **new month** folder
+       ahead of time (empty, no spreadsheet) so it exists in `folders.yaml` for later.
+     - **APPEND (completing the week, typically Friday):** see Step 3 append rules —
+       the existing file is read from the **ending month** folder, and the completed
+       full report is written into the **new month** folder. The old copy in the
+       ending month is left in place (not deleted); it is fine that it stays partial.
+   - For a normal (same-month) week: single folder = that month.
    - Look up folder ID(s) from `folders.yaml` `months` map
-   - If a month folder doesn't exist yet, create it via Apps Script inside `year_folder_id` (see step 8)
+   - If a needed month folder doesn't exist yet, create it via Apps Script inside `year_folder_id` (see step 8)
+
+   **Why this design:** the monthly-report skill aggregates by the DATES inside the
+   tables (not by which folder holds a file), so a cross-month week ending up in the
+   new month's folder does not lose the previous month's days — the monthly report
+   still finds them by date. Keeping one file avoids the divergence bug where a user
+   edits one copy and the other goes stale.
 
 2. **Generate spreadsheet title**:
+   - **CRITICAL: The title is computed from the WEEK BOUNDS (ISO Monday..Friday of
+     the report's week), NOT from the actual report days.** This keeps the title
+     stable across the week so a mid-week report and its Friday completion resolve
+     to the same file (enabling append mode). Do NOT build the title from the first
+     and last day that happen to have rows.
    - Same month: `Report by {full_name} DD - DD Month YYYY`
      - Example: `Report by John Doe 8 - 12 June 2026`
    - Cross-month: `Report by {full_name} DD Month - DD Month YYYY`
      - Example: `Report by John Doe 27 April - 1 May 2026`
    - `full_name` is read from `~/.kiro/work-config.yaml`
-   - Use the END date's year in the title
+   - Use the END date's year in the title (END = the week's Friday)
+   - Month folder is chosen from the week bounds and the CREATE/APPEND phase, per the
+     cross-month single-file rule in Step 6.1: a cross-month week goes in ONE folder
+     at a time (ending month on CREATE, new month on APPEND), never both at once.
 
 3. **Check if spreadsheet already exists (append mode)**:
-   - List spreadsheets in the target folder using `list_spreadsheets`
+
+   **First, pick which folder to search for the existing file:**
+   - **Same-month week:** search the single month folder (that month).
+   - **Cross-month week:** search the **ending month** folder (the month of the week's
+     Monday). That is where the mid-week CREATE placed the file. Do NOT search the new
+     month folder for the source — it was intentionally left empty on CREATE.
+
+   - List spreadsheets in that folder using `list_spreadsheets`
    - Search for a spreadsheet with the EXACT title generated in step 2
    - **If found** → this is an APPEND operation:
      a. Read existing data with `get_sheet_data` (sheet: "Sheet1")
@@ -180,11 +246,24 @@ If a day has work on multiple projects, create separate rows splitting hours (as
      f. If no new dates to add → inform user "Цей тиждень вже повністю в звіті, нових днів нема" and stop
      g. Merge: existing data rows (with dates) + new data rows, sort all by date
      h. Recalculate Total (sum of ALL hours — old + new)
-     i. Write: header + data rows + Total row. **No empty rows between data and Total.** Total row count = actual working days only.
-     j. Use `update_cells` with range `A1:H{new_last_row}`
-     k. **Clean up leftover rows**: if old spreadsheet had more rows (e.g., template with 5 placeholder rows), clear any rows below the new last row
-     l. Report: "Дописав {N} днів до існуючого звіту: {url}"
-   - **If not found** → this is a CREATE operation (proceed to step 4)
+     i. **Where to WRITE the merged result depends on the week type:**
+        - **Same-month week:** write back into the SAME file that was found (true
+          in-place append). Use `update_cells` range `A1:H{new_last_row}`.
+        - **Cross-month week:** do NOT overwrite the file in the ending month. Instead
+          CREATE a new spreadsheet in the **new month** folder (same title) via Apps
+          Script, trim rows to the merged day count, and write the full merged result
+          there. Leave the ending-month file untouched (it stays partial — that is
+          expected and fine; the monthly report aggregates by date, not by folder).
+          If a file with that title already exists in the new month folder (e.g. this
+          is the 2nd append), treat that as the in-place target instead of creating a
+          duplicate.
+     j. Write: header + data rows + Total row. **No empty rows between data and Total.** Total row count = actual working days only.
+     k. **Clean up leftover rows** in whichever file you wrote: if it had more rows (template placeholders), clear any rows below the new last row.
+     l. Report which file was updated/created and its URL. For cross-month: state
+        clearly that the completed report now lives in the {new month} folder and the
+        partial copy remains in {ending month}.
+   - **If not found** → this is a CREATE operation (proceed to step 4). For cross-month
+     CREATE, the target folder is the **ending month** (see Step 6.1).
 
 4. **Create spreadsheet via Apps Script Web App** (only if step 3 determined CREATE):
    - Read `apps_script_url` from `folders.yaml`
@@ -200,19 +279,22 @@ If a day has work on multiple projects, create separate rows splitting hours (as
    - Response: `{"spreadsheet_id": "...", "url": "..."}`
    - This creates the file owned by the user's account (no quota issues)
 
-5. **Trim unused rows** (only for CREATE, when data_rows < 5):
-   - The template always has 5 data row slots (rows 2-6) + Total (row 7)
-   - If this week has fewer than 5 working days (holiday, sick leave), call trim_rows BEFORE writing data:
+5. **Trim unused rows** (ALWAYS for CREATE — the template has 35 slots):
+   - The template has 35 data row slots (rows 2-36) + Total (row 37).
+   - **ALWAYS call trim_rows BEFORE writing data**, for ANY day count (even a full
+     5-day week), because the template now leaves many empty slots. Pass the actual
+     number of data rows (working days in this report):
      ```bash
      REDIRECT_URL=$(curl -s -o /dev/null -w "%{redirect_url}" -X POST "$APPS_SCRIPT_URL" \
        -H "Content-Type: application/json" \
-       -d '{"action": "trim_rows", "spreadsheet_id": "...", "data_rows": 4}')
+       -d '{"action": "trim_rows", "spreadsheet_id": "...", "data_rows": 5}')
      curl -s "$REDIRECT_URL"
      ```
-   - Response: `{"spreadsheet_id": "...", "rows_deleted": 1, "total_rows": 6}`
+   - Response: `{"spreadsheet_id": "...", "rows_deleted": 30, "total_rows": 7}`
+   - trim_rows deletes `35 - data_rows` empty slots so Total sits right after the last data row.
    - This removes empty placeholder rows so Total sits right after the last data row
    - **Why before writing**: template rows have dropdown validation (Deliverables column). If Total lands on a row with validation, update_cells fails silently. Trimming first removes those validated cells.
-   - If data_rows == 5 → skip this step (no trimming needed)
+   - Never skip trimming — with a 35-slot template every report has empty slots to remove.
 
 6. **Write data** using `update_cells` (MCP tool, works via service account with shared access):
    - Row 1: headers `["Worker ID", "Date", "Activity ", "Task Name", "Project", "Details", "Deliverables", "Time"]`
@@ -223,10 +305,17 @@ If a day has work on multiple projects, create separate rows splitting hours (as
    - **CRITICAL: Date values must be prefixed with apostrophe** (`'07/01/2026`) to force Google Sheets to treat them as text. Without this, Sheets may auto-detect dates and reformat them according to the document's locale (e.g., DD/MM/YYYY instead of MM/DD/YYYY).
    - **CRITICAL: Total row position** — the Total row MUST be exactly N+1 where N = number of data rows (immediately after the last day). Never leave empty rows between data and Total. If a week has fewer than 5 working days (holidays, sick leave), the report has fewer rows — Total still goes right after the last day.
 
-7. **For cross-month reports**: create/update the spreadsheet in BOTH month folders
-   - Check each folder independently (one may already have it, the other may not)
-   - Apply the same append-or-create logic per folder
-   - **CRITICAL: Use identical data arrays** for both copies — build the data once, write to both. Never construct data separately for each folder (risks divergence).
+7. **Cross-month reports — single-file rule (replaces the old "both folders" behavior)**:
+   - A cross-month week is stored in ONE folder at a time. NEVER write the same report
+     into both month folders — that caused divergent duplicates (one edited, one stale).
+   - **CREATE (mid-week first run):** write ONLY into the ending-month folder (month of
+     the week's Monday). Also create the new-month folder ahead of time, EMPTY.
+   - **APPEND (Friday completion):** read the existing file from the ending-month folder,
+     merge the new days, and write the completed full report into the NEW-month folder
+     (month of the week's Friday). Leave the ending-month copy in place (partial is fine).
+   - The completed week thus ends up in the new month's folder, containing both the
+     previous month's days and the new month's days. This is intentional: the
+     monthly-report skill selects rows by DATE, so both months' aggregates stay correct.
 
 8. **Creating new month folders** (when needed):
    - A month folder ALWAYS goes inside the current `year_folder_id` — NEVER inside `root_folder_id`.

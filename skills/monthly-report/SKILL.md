@@ -134,13 +134,37 @@ Ask: "Все вірно? Зберігаю?"
    curl -s "$REDIRECT_URL"
    ```
 
-4. **Write data** using `update_cells` MCP tool:
+4. **Trim unused rows BEFORE writing data** (ALWAYS — template has 35 slots):
+   - The shared template (same as weekly-report) has 35 data row slots (rows 2-36)
+     plus a Total row (row 37), all pre-formatted (borders, fonts, WRAP on Details,
+     Deliverables dropdown). A monthly report has ~20-23 days, so the extra empty
+     slots MUST be trimmed so Total sits right after the last day.
+   - Call trim_rows with the actual number of aggregated data rows:
+     ```bash
+     REDIRECT_URL=$(curl -s -o /dev/null -w "%{redirect_url}" -X POST "$APPS_SCRIPT_URL" \
+       -H "Content-Type: application/json" \
+       -d '{"action": "trim_rows", "spreadsheet_id": "...", "data_rows": 22}')
+     curl -s "$REDIRECT_URL"
+     ```
+   - Response: `{"spreadsheet_id": "...", "rows_deleted": 13, "total_rows": 24}`
+   - trim_rows deletes `35 - data_rows` empty slots. This also removes the leftover
+     dropdown validation on those rows so the Total row writes cleanly.
+   - **Why the template carries formatting**: `update_cells` (MCP) writes VALUES ONLY,
+     never formatting. Borders, fonts, and WRAP come from the template's pre-formatted
+     rows. Writing values into the trimmed, pre-formatted rows yields a correctly
+     formatted report with no extra formatting step.
+
+5. **Write data** using `update_cells` MCP tool (into the trimmed, pre-formatted rows):
    - Row 1: headers `["Worker ID", "Date", "Activity ", "Task Name", "Project", "Details", "Deliverables", "Time"]`
    - Rows 2-N: all aggregated data rows (sorted by date)
    - Last row: Total row — empty cells for columns A-F, "Total" in G, sum of hours in H
-   - Range: `A1:H{last_row}`
+   - Range: `A1:H{last_row}` where last_row = data_rows + 2 (header + days + Total)
+   - **CRITICAL: Date values must be prefixed with apostrophe** (`'09/01/2026`) so
+     Sheets keeps them as text and does not reformat by locale.
+   - **CRITICAL: Total row position** — Total MUST be exactly at row (data_rows + 2),
+     immediately after the last day. No empty rows between data and Total.
 
-5. **Report success** with the spreadsheet URL
+6. **Report success** with the spreadsheet URL
 
 ### Step 7: Save Local Copy
 
@@ -157,7 +181,7 @@ Save to `{reports_dir}/YYYY-MM-monthly.md` with:
 - **Date format in cells**: `MM/DD/YYYY` (US format, consistent with weekly reports)
 - **Date validation**: When reading weekly reports, verify dates are MM/DD/YYYY. If first position > 12 — clearly DD/MM error, alert user. If ambiguous (e.g., `08/06/2026`) — cross-check: does this date match the week range in the spreadsheet title? If not — alert user and ask how to proceed. Never silently copy wrong-format dates into the monthly report.
 - **Only ONE sheet** per spreadsheet (Sheet1)
-- **No formulas, no extra formatting** — plain values only
+- **No formulas** — plain values only. Formatting (borders, fonts, WRAP, Deliverables dropdown) comes from the shared template; do NOT add extra formatting via code, and do NOT strip the template's formatting.
 - **Preserve exact text** from weekly reports — do NOT rewrite, summarize, or modify Details column content. Copy rows byte-for-byte as they appear in Google Sheets, even if you see typos or inconsistencies.
 - **Cross-month logic**: when a weekly report spans two months, include only the days belonging to the target month
 - **Total row format**: matches weekly report format exactly (empty cells A-F, "Total" in G, hours in H)
