@@ -36,6 +36,14 @@ description: "Generate weekly work report and save to Google Sheets. Use when: w
    Wait for the answer. If option 1 → current week Mon..today. If option 2 →
    previous week Mon-Fri. If option 3 → use the dates the user gives.
 
+   **Victor's stated default (learned 2026-10-12):** on a plain weekday request with
+   no date, Victor almost always means the **previous finished week** (option 2). He
+   only wants the current incomplete week when the month changes mid-week on a
+   weekday — i.e. the current week straddles a month boundary and those early days
+   must be closed for the monthly report. Absent such a month-change, assume he means
+   the previous week. Still confirm briefly rather than silently guessing, but lead
+   with option 2 as the expected answer.
+
 ### With `current week` / `цей тиждень` parameter:
 - Always use current week Mon-Fri regardless of what day it is
 - Report covers days up to today (or all Mon-Fri if today is Fri+)
@@ -176,10 +184,50 @@ Last row (Total row):
 ### Step 4: Handle Multi-Project Days
 If a day has work on multiple projects, create separate rows splitting hours (ask user for split if unclear).
 
+### Step 3.5: Time Categorization (Percentage Summary)
+
+**MANDATORY — manager requirement (set 2026-10-25).**
+Every weekly and monthly report MUST include a percentage breakdown of time per
+category, relative to total billed hours. This produces a small summary table that
+is appended BELOW the Total row (see Step 6, sub-step "Write percentage summary").
+
+This categorization is a SEPARATE analytical layer. It does NOT change the main
+table: the main table still has exactly one row per working day (and, under the
+AFFIRM override, that row is always Task Name/Project = AFFIRM). The summary only
+re-slices the same total hours by category for reporting.
+
+**How to build the categories:**
+
+1. **Categories are free-text labels** decided during report generation — there is
+   no fixed list. Examples: `AFFIRM – Development`, `AFFIRM – Portal`,
+   `AFFIRM – ACC Circuit`, `Meetings/Admin`, `Onboarding/Training`. Pick labels that
+   describe the actual work; a label may name a sub-project/feature or a work type.
+
+2. **Propose a category split from the Details column**, then let the user correct.
+   For each working day, read its Details and suggest how its hours map to one or
+   more categories. A day MAY be split across multiple categories (e.g. 6h
+   Development + 2h Meetings/Admin). Default to a single category per day when the
+   day was clearly one kind of work.
+
+3. **Present the proposed split as a table** `Day | Category | Hours` and ask the
+   user to adjust labels, merge categories, or change the hour split. The user has
+   final say over both the label set and the hours.
+
+4. **Validation — the split MUST reconcile:** for every day, the sum of its
+   per-category hours equals that day's total hours. The grand total of all
+   category hours MUST equal the report's Total hours. If it does not reconcile,
+   fix it before proceeding — never present a summary whose Check ≠ 100%.
+
+5. **Compute percentages** as `category_hours / total_hours`, rounded to the nearest
+   whole percent. Rounding may make the displayed percents sum to 99% or 101% — that
+   is acceptable; the Hours column is the source of truth and the Check row shows the
+   real total. Do NOT fudge individual percents to force exactly 100%.
+
 ### Step 5: Present and Confirm
-1. Show the generated table to the user
-2. Ask for corrections
-3. After confirmation, proceed to Step 6
+1. Show the generated main table to the user
+2. Show the percentage summary table (categories, Hours, % of total, Check row)
+3. Ask for corrections (to either table)
+4. After confirmation, proceed to Step 6
 
 ### Step 6: Save to Google Sheets
 
@@ -258,7 +306,13 @@ If a day has work on multiple projects, create separate rows splitting hours (as
           is the 2nd append), treat that as the in-place target instead of creating a
           duplicate.
      j. Write: header + data rows + Total row. **No empty rows between data and Total.** Total row count = actual working days only.
-     k. **Clean up leftover rows** in whichever file you wrote: if it had more rows (template placeholders), clear any rows below the new last row.
+     j2. **Recompute and rewrite the percentage summary block** (Step 6.5) for the FULL
+        merged set of days — the old block from the partial file is now at the wrong
+        position and has stale hours. Clear the old block area and write the fresh
+        block below the new Total row. Re-run Step 3.5 categorization over all merged
+        days (reuse the existing per-day category split where possible; ask the user
+        only about the newly added days).
+     k. **Clean up leftover rows** in whichever file you wrote: if it had more rows (template placeholders or an old summary block), clear any rows below the new last row (the new last row is the Check row of the summary block).
      l. Report which file was updated/created and its URL. For cross-month: state
         clearly that the completed report now lives in the {new month} folder and the
         partial copy remains in {ending month}.
@@ -304,6 +358,34 @@ If a day has work on multiple projects, create separate rows splitting hours (as
    - Range: `A1:H{last_row}`
    - **CRITICAL: Date values must be prefixed with apostrophe** (`'07/01/2026`) to force Google Sheets to treat them as text. Without this, Sheets may auto-detect dates and reformat them according to the document's locale (e.g., DD/MM/YYYY instead of MM/DD/YYYY).
    - **CRITICAL: Total row position** — the Total row MUST be exactly N+1 where N = number of data rows (immediately after the last day). Never leave empty rows between data and Total. If a week has fewer than 5 working days (holidays, sick leave), the report has fewer rows — Total still goes right after the last day.
+
+6.5. **Write percentage summary block** (MANDATORY — manager requirement, see Step 3.5):
+   - After the Total row, append the category breakdown produced in Step 3.5 as a
+     small table of plain values (no formulas).
+   - Let **R** = the spreadsheet row of the Total row = N+2 (header + N day rows + Total).
+   - **Column mapping** — place the block in columns **F, G, H** so the percentages
+     sit under the Time column:
+       - Col F = category label (and the word `Check` on the final row)
+       - Col G = hours for that category
+       - Col H = percent string (e.g. `91%`)
+     - Header row of the block: F=`Category`, G=`Hours`, H=`% of total`
+     - One row per category: F=label, G=hours, H=`{rounded}%`
+     - Final row: F=`Check`, G=`{sum of category hours}`, H=`100%`
+   - **Row positions** (R = Total row = N+2):
+     - R+1: empty separator row
+     - R+2: block header (`Category` / `Hours` / `% of total`)
+     - R+3 .. R+2+K: K category rows
+     - R+3+K: Check row
+   - **Write with `update_cells`** over range `F{R+2}:H{R+3+K}` (block header through
+     Check). Hours are plain numbers; percent is a text string with a trailing `%`.
+     Do NOT prefix these with an apostrophe (they are not dates).
+   - **No formatting is applied to this block in this version** (plain values only).
+     The template's pre-formatting was trimmed away below the Total row, so the block
+     will appear unstyled. This is the agreed first iteration; styling (bold header,
+     borders) may be added later via an Apps Script action if the manager requires it.
+   - **Reconciliation check before writing**: the sum of category hours (Check G value)
+     MUST equal the report's Total hours. If not, stop and fix the split — never write
+     a block whose Check ≠ Total.
 
 7. **Cross-month reports — single-file rule (replaces the old "both folders" behavior)**:
    - A cross-month week is stored in ONE folder at a time. NEVER write the same report
@@ -373,3 +455,17 @@ Read `reports_dir` from work-config.yaml (default: `~/.kiro/work-planning/report
 - **Business value justification**: If an activity is NOT a Jira ticket or planned company task (e.g., workspace setup, personal tooling, automation skills, productivity improvements), add a brief parenthetical explaining its value to the company. Example: "Created reporting automation skill for use with Kiro CLI. (Within the scope of automating routine operations and possible long-term analysis of work patterns)."
 - **No raw technical metrics in Details**: Do not include raw numbers, file counts, byte sizes, or internal diagnostic data (e.g., "27 files, 120KB"). Report the action and outcome only (e.g., "audited S3 cache, no action needed"). The report audience is management, not engineers.
 - **One ticket per line in Details cell**: Each new ticket mention (FOTL-XXXX, CRUE-XXXX, etc.) starts on a new line within the same cell. This improves readability in the spreadsheet. **CRITICAL**: Use actual newline characters in the JSON data array (multi-line string), NOT literal `\n` escape sequences. Google Sheets renders real newlines as line breaks inside cells, but literal `\n` text shows as visible characters.
+
+## Active Project Override (set 2026-10-19 by Viktor)
+
+**ALL working days map to a single project: AFFIRM** — Task Name `AFFIRM`,
+Project `AFFIRM`. Viktor's other projects (BCPD, CRUE, FOTL) are finished or
+handed off and MUST NOT appear in reports.
+
+- Regardless of what the work-log / sessions / Jira say the work touched, every
+  report row uses Task Name `AFFIRM` and Project `AFFIRM`.
+- Do NOT split a day across multiple projects anymore — one AFFIRM row per working day.
+- This override stays in effect until Viktor explicitly revokes or changes it.
+  When he does, update or remove this section.
+- The Details column still describes the actual work done that day (in English),
+  just always attributed to AFFIRM.

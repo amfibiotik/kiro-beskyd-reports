@@ -108,12 +108,48 @@ Also check the NEXT month's folder for cross-month reports that may contain days
 - Sum the "Time" column for all rows
 - This should be `business_days_covered × default_hours` (but use actual values from reports, not calculated)
 
+### Step 4.5: Time Categorization (Percentage Summary)
+
+**MANDATORY — manager requirement (set 2026-10-25).**
+The monthly report MUST include the same percentage-per-category summary block as
+the weekly report (see weekly-report SKILL.md Step 3.5), appended below the Total row.
+
+**How to build the monthly categories:**
+
+1. **Prefer aggregating the weekly summary blocks.** Each weekly report written after
+   2026-10-25 carries its own summary block in columns F/G/H (header `Category /
+   Hours / % of total`, category rows, a `Check` row). When reading each weekly
+   spreadsheet in Step 2, also read that block if present:
+   - Collect `(category_label, hours)` pairs from every weekly report that contributed
+     days to the target month.
+   - For cross-month weeks, the weekly block covers the WHOLE week, not just the
+     target-month days. Only count the portion of hours that belongs to target-month
+     days. If the weekly block does not let you cleanly separate the target-month
+     portion (categories are week-level, not per-day), fall back to re-categorization
+     (point 3) for that week's target-month days.
+
+2. **Sum hours by category label across the month**, merging identical labels. Because
+   labels are free text, near-duplicates may appear (e.g. `Meetings/Admin` vs
+   `Meeting/Admin`). Normalize obvious duplicates and, when unsure, ask the user how
+   to merge — never silently merge labels that might be distinct.
+
+3. **Fallback — re-categorize from Details** when weekly blocks are missing (older
+   reports) or cannot be split by month: for the affected target-month days, propose a
+   category split from each day's Details (same procedure as weekly Step 3.5) and let
+   the user correct it.
+
+4. **Validation — must reconcile:** the grand total of all category hours MUST equal
+   the monthly Total hours. Present the split (`Category | Hours | %`) to the user for
+   confirmation. Percentages = `category_hours / monthly_total`, rounded to whole
+   percent; the `Check` row shows the real summed hours and `100%`.
+
 ### Step 5: Present Report
 
 Show the aggregated table to the user:
 - All rows sorted by date
 - Total hours at the bottom
 - Count of business days covered
+- The percentage summary table (categories, Hours, % of total, Check row)
 
 Ask: "Все вірно? Зберігаю?"
 
@@ -164,6 +200,25 @@ Ask: "Все вірно? Зберігаю?"
    - **CRITICAL: Total row position** — Total MUST be exactly at row (data_rows + 2),
      immediately after the last day. No empty rows between data and Total.
 
+5.5. **Write percentage summary block** (MANDATORY — manager requirement, see Step 4.5):
+   - Append the monthly category breakdown below the Total row, identically to the
+     weekly report (see weekly-report SKILL.md Step 6, sub-step 6.5).
+   - Let **R** = the Total row = data_rows + 2.
+   - Place the block in columns **F, G, H**:
+     - Col F = category label (and `Check` on the final row)
+     - Col G = hours; Col H = percent string (e.g. `91%`)
+   - Rows:
+     - R+1: empty separator row
+     - R+2: block header (F=`Category`, G=`Hours`, H=`% of total`)
+     - R+3 .. R+2+K: one row per category (F=label, G=hours, H=`{rounded}%`)
+     - R+3+K: `Check` row (F=`Check`, G=sum of category hours, H=`100%`)
+   - Write with `update_cells` over `F{R+2}:H{R+3+K}`. Hours are plain numbers,
+     percent is text with a trailing `%`; do NOT apostrophe-prefix these.
+   - **No formatting applied in this version** (plain values) — the block sits in the
+     trimmed-away area below Total, so it is unstyled. Styling may be added later.
+   - **Reconciliation**: the `Check` hours MUST equal the monthly Total. If not, stop
+     and fix the split before writing.
+
 6. **Report success** with the spreadsheet URL
 
 ### Step 7: Save Local Copy
@@ -187,3 +242,9 @@ Save to `{reports_dir}/YYYY-MM-monthly.md` with:
 - **Total row format**: matches weekly report format exactly (empty cells A-F, "Total" in G, hours in H)
 - **Never fabricate data** — if something looks wrong, ask the user
 - **One ticket per line** rule from weekly reports carries over — don't merge or reformat multi-line Details cells. When writing to Google Sheets, use actual newline characters in JSON data arrays (not literal `\n` text).
+- **Percentage summary block (F/G/H below Total)**: when reading weekly reports in
+  Step 2, do NOT treat the summary block rows as day data — the day-row parser keys
+  off the Date column (col B), and summary rows have an empty Date, so they are
+  naturally skipped. The block is used only by Step 4.5 for category aggregation.
+  The monthly report writes its OWN recomputed block (Step 5.5); never copy a
+  weekly block verbatim into the monthly sheet.
