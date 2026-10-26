@@ -181,42 +181,52 @@ Last row (Total row):
 | Deliverables | `Source Code, Object Code, Documentation` if code was written; `None` otherwise (research, meetings, demo prep, documentation-only days). **Only these two values** — never use partial combinations like "Documentation" or "Test Cases, Reports". |
 | Time | From config: `default_hours` (usually 8) |
 
-### Step 4: Handle Multi-Project Days
-If a day has work on multiple projects, create separate rows splitting hours (ask user for split if unclear).
+### Step 4: Split Days by Activity Type (Project)
+Each working day is broken into one row per activity type, using the Project values
+from the Active Project Override (`AFFIRM`, `Meeting`, `Onboarding`,
+`Technical Design`, `Tooling/Automation`, or a new value for a new activity type).
+
+- Read the day's work-log / sessions / Jira and propose how its hours split across
+  activity types (e.g. 6h `AFFIRM` + 2h `Meeting`). Present the proposed split and
+  let Viktor adjust before saving.
+- A day that was clearly one activity type stays a single row.
+- Task Name mirrors the Project value for these internal activity types (no Jira key).
+- The percentage summary (Step 3.5) is a straight group-by of this split — do not
+  re-estimate hours there.
 
 ### Step 3.5: Time Categorization (Percentage Summary)
 
-**MANDATORY — manager requirement (set 2026-10-25).**
+**MANDATORY — manager requirement (set 2026-10-25, revised 2026-10-26).**
 Every weekly and monthly report MUST include a percentage breakdown of time per
 category, relative to total billed hours. This produces a small summary table that
 is appended BELOW the Total row (see Step 6, sub-step "Write percentage summary").
 
-This categorization is a SEPARATE analytical layer. It does NOT change the main
-table: the main table still has exactly one row per working day (and, under the
-AFFIRM override, that row is always Task Name/Project = AFFIRM). The summary only
-re-slices the same total hours by category for reporting.
+**The categories ARE the distinct values of the Project column in the main table.**
+This is no longer a free-text layer — it is a direct roll-up of the main table.
+Meetings, onboarding, tooling, etc. appear as their own Project rows in the main
+table (see Active Project Override), so they automatically become their own
+percentage lines. Nothing is folded under `AFFIRM` that was not actually AFFIRM work.
 
-**How to build the categories:**
+**How to build the summary:**
 
-1. **Categories are free-text labels** decided during report generation — there is
-   no fixed list. Examples: `AFFIRM – Development`, `AFFIRM – Portal`,
-   `AFFIRM – ACC Circuit`, `Meetings/Admin`, `Onboarding/Training`. Pick labels that
-   describe the actual work; a label may name a sub-project/feature or a work type.
+1. **Categories = unique Project values** present in the main table for this report.
+   Do NOT invent labels that differ from the Project column; the summary must match
+   the table exactly (e.g. `AFFIRM`, `Meeting`, `Onboarding`, `Technical Design`,
+   `Tooling/Automation`).
 
-2. **Propose a category split from the Details column**, then let the user correct.
-   For each working day, read its Details and suggest how its hours map to one or
-   more categories. A day MAY be split across multiple categories (e.g. 6h
-   Development + 2h Meetings/Admin). Default to a single category per day when the
-   day was clearly one kind of work.
+2. **Hours per category = sum of the Time column** across all main-table rows that
+   share that Project value. Because the main table already splits multi-activity
+   days into separate rows (per the override), this is a straight group-by, not a
+   re-estimate.
 
-3. **Present the proposed split as a table** `Day | Category | Hours` and ask the
-   user to adjust labels, merge categories, or change the hour split. The user has
-   final say over both the label set and the hours.
+3. **No separate split step / no user re-estimation here.** The hour allocation was
+   already decided when the main table rows were built (Step 4). The summary just
+   aggregates them. If the user wants to change the split, that is a change to the
+   main-table rows, which then flows into the summary.
 
-4. **Validation — the split MUST reconcile:** for every day, the sum of its
-   per-category hours equals that day's total hours. The grand total of all
-   category hours MUST equal the report's Total hours. If it does not reconcile,
-   fix it before proceeding — never present a summary whose Check ≠ 100%.
+4. **Validation — the summary MUST reconcile:** the sum of per-category hours MUST
+   equal the report's Total hours (the Check row). If it does not reconcile, the
+   main table is wrong — fix the rows, never fudge the summary.
 
 5. **Compute percentages** as `category_hours / total_hours`, rounded to the nearest
    whole percent. Rounding may make the displayed percents sum to 99% or 101% — that
@@ -456,16 +466,44 @@ Read `reports_dir` from work-config.yaml (default: `~/.kiro/work-planning/report
 - **No raw technical metrics in Details**: Do not include raw numbers, file counts, byte sizes, or internal diagnostic data (e.g., "27 files, 120KB"). Report the action and outcome only (e.g., "audited S3 cache, no action needed"). The report audience is management, not engineers.
 - **One ticket per line in Details cell**: Each new ticket mention (FOTL-XXXX, CRUE-XXXX, etc.) starts on a new line within the same cell. This improves readability in the spreadsheet. **CRITICAL**: Use actual newline characters in the JSON data array (multi-line string), NOT literal `\n` escape sequences. Google Sheets renders real newlines as line breaks inside cells, but literal `\n` text shows as visible characters.
 
-## Active Project Override (set 2026-10-19 by Viktor)
+## Active Project Override (set 2026-10-19 by Viktor, revised 2026-10-26)
 
-**ALL working days map to a single project: AFFIRM** — Task Name `AFFIRM`,
-Project `AFFIRM`. Viktor's other projects (BCPD, CRUE, FOTL) are finished or
-handed off and MUST NOT appear in reports.
+**Supersedes the earlier "everything under one AFFIRM row" rule.**
 
-- Regardless of what the work-log / sessions / Jira say the work touched, every
-  report row uses Task Name `AFFIRM` and Project `AFFIRM`.
-- Do NOT split a day across multiple projects anymore — one AFFIRM row per working day.
-- This override stays in effect until Viktor explicitly revokes or changes it.
-  When he does, update or remove this section.
-- The Details column still describes the actual work done that day (in English),
-  just always attributed to AFFIRM.
+Manager requirement (2026-10-26): the **Project column of the
+main table** must break work down by activity type. Meetings, onboarding,
+technical-design writing, tooling, etc. are NOT logged under `AFFIRM` — each gets
+its own Project value and its own hours. The percentage summary is then derived
+directly from the Project column (see Step 3.5), not from free-text labels.
+
+**Project categories Viktor currently uses** (this is a starting set, not a closed
+list — new activity types get new Project values as they appear):
+
+| Project value        | Covers |
+|----------------------|--------|
+| `AFFIRM`             | Development / direct work on the AFFIRM product |
+| `Onboarding`         | Onboarding, studying the project, reading docs |
+| `Technical Design`   | Writing technical design documents (TD) |
+| `Tooling/Automation` | Dev environment setup, Kiro skills, routine automation |
+| `Meeting`            | Meetings, stand-ups |
+
+Rules:
+- Viktor's finished/handed-off projects (BCPD, CRUE, FOTL) MUST NOT appear.
+- Task Name follows the Project: use the same category value (e.g. Project
+  `Meeting` → Task Name `Meeting`). There is no Jira key for these internal
+  activity types.
+- **A day is split into multiple rows when it contained multiple activity types**
+  (e.g. 6h AFFIRM development + 2h Meeting = two rows). Hours are split per the
+  actual work; propose a split from the work-log/sessions and let Viktor adjust.
+  A day that was clearly one activity type stays a single row.
+- `Tooling/Automation` and similar non-Jira work still need the brief business-value
+  parenthetical in Details (see "Business value justification" above).
+- **ASK before placing tooling / Kiro-skill / environment-setup hours (do NOT decide
+  silently).** When a week contains hours spent writing Kiro skills, setting up the
+  dev environment, or similar internal automation, STOP and ask Viktor how to handle
+  them for that specific report — whether to show them as their own
+  `Tooling/Automation` line or fold them into another category (e.g. `Onboarding`),
+  and how to word the Details. Do NOT hardcode a fixed rule: the right answer changes
+  over time (e.g. folding into `Onboarding` only makes sense while onboarding is
+  current). There is intentionally no default here — always ask.
+- This category list and the split rule stay in effect until Viktor changes them.
