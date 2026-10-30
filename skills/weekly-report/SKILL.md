@@ -191,6 +191,8 @@ from the Active Project Override (`AFFIRM`, `Meeting`, `Onboarding`,
   let Viktor adjust before saving.
 - A day that was clearly one activity type stays a single row.
 - Task Name mirrors the Project value for these internal activity types (no Jira key).
+  Ticketed work: Task Name = Jira project key without number (e.g. `CAL`), Project
+  = name from config `projects` mapping for that key (see Active Project Override rules).
 - The percentage summary (Step 3.5) is a straight group-by of this split — do not
   re-estimate hours there.
 
@@ -481,9 +483,9 @@ list — new activity types get new Project values as they appear):
 
 | Project value        | Covers |
 |----------------------|--------|
-| `AFFIRM`             | Development / direct work on the AFFIRM product |
+| `AFFIRM`             | Development / direct work on the AFFIRM product, incl. work tracked by a Jira ticket whose key maps to `AFFIRM` in config `projects` (e.g. `CAL`) |
 | `Onboarding`         | Onboarding, studying the project, reading docs |
-| `Technical Design`   | Writing technical design documents (TD) |
+| `Technical Design`   | Writing technical design documents (TD) that have NO dedicated Jira ticket |
 | `Tooling/Automation` | Dev environment setup, Kiro skills, routine automation |
 | `Meeting`            | Meetings, stand-ups |
 
@@ -492,6 +494,14 @@ Rules:
 - Task Name follows the Project: use the same category value (e.g. Project
   `Meeting` → Task Name `Meeting`). There is no Jira key for these internal
   activity types.
+- **Work with its own Jira ticket (set 2026-10-30 by Viktor):** Task Name = the
+  Jira PROJECT KEY only, without the number (e.g. `CAL`, not `CAL-2371`); Project =
+  the human name for that key from the `projects` mapping in `~/.kiro/work-config.yaml`
+  (e.g. `CAL: "AFFIRM"` → Project `AFFIRM`). Do NOT hardcode the Project value — always
+  look it up. If the key is not in the mapping, ask Viktor and add it to the config.
+  This applies to technical-design work too: a TD that has a dedicated ticket (e.g.
+  CAL-2371 Watchlist API TD) goes under its ticket key and mapped Project, NOT under
+  `Technical Design`. The full ticket ID stays at the start of Details (`CAL-2371: ...`).
 - **A day is split into multiple rows when it contained multiple activity types**
   (e.g. 6h AFFIRM development + 2h Meeting = two rows). Hours are split per the
   actual work; propose a split from the work-log/sessions and let Viktor adjust.
