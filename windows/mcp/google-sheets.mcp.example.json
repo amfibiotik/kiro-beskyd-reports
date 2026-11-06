@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "google-sheets": {
+      "command": "uvx",
+      "args": [
+        "--with",
+        "mcp==1.30.0",
+        "mcp-google-sheets@0.6.3",
+        "--include-tools",
+        "list_spreadsheets,list_sheets,list_folders,get_sheet_data,update_cells"
+      ],
+      "env": {
+        "SERVICE_ACCOUNT_PATH": "C:/Users/<you>/.config/kiro-sheets-sa.json",
+        "DRIVE_FOLDER_ID": "<root reports folder id>"
+      },
+      "disabled": false
+    }
+  }
+}
