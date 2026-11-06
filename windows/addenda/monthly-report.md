@@ -18,6 +18,13 @@ same helper calls as the weekly-report skill (create_spreadsheet / trim_rows).
 The helper always prints JSON. On failure it prints `{"error": "..."}` and exits non-zero:
 stop and show the error to the user.
 
+**No duplicates: verify before retrying.** In Kiro IDE the terminal output of a command is
+sometimes lost even though the command succeeded. Run one create per command and redirect its
+output to a file to read it back. If you get no output, do NOT create again: first list the
+month folder with `list_spreadsheets` (`folder_id`) and look for the exact title. Only if it is
+absent, create it again. When aggregating, an empty spreadsheet with the same title as a filled
+one is a leftover duplicate: ignore it and tell the user so they can trash it.
+
 Reading/writing cells still uses the google-sheets MCP server tools named above
 (`list_spreadsheets` with `folder_id` for each month folder, `get_sheet_data`,
 `update_cells`).

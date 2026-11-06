@@ -19,6 +19,14 @@ The helper always prints JSON. On failure it prints `{"error": "..."}` and exits
 stop and show the error to the user (do not retry blindly). The responses have the same
 shape as documented above (`spreadsheet_id`/`url`, `folder_id`/`name`, `rows_deleted`/`total_rows`).
 
+**No duplicates: verify before retrying.** In Kiro IDE the terminal output of a command is
+sometimes lost even though the command succeeded. Run one `create_spreadsheet` /
+`create_folder` per command (never several in a loop), and redirect its output to a file to
+read it back. If you get no output, do NOT call create again: first list the target folder
+(`list_spreadsheets` with `folder_id`, or `list_folders` for folders) and look for the exact
+title/name. Only if it is absent, create it again. If a duplicate slipped through, tell the user
+which one is empty (the user, as owner, must move it to trash; the service account cannot).
+
 Reading/writing cells still uses the google-sheets MCP server tools named above
 (`list_spreadsheets`, `get_sheet_data`, `update_cells`); pass `folder_id` to
 `list_spreadsheets` to search a specific month folder.
