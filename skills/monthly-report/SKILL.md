@@ -85,7 +85,7 @@ Before aggregating, verify that all business days of the target month are covere
 ### Step 2: Read All Weekly Reports from Google Sheets
 
 For each spreadsheet in the target month's folder:
-1. Read all data using `get_sheet_data` (sheet: "Sheet1")
+1. Read all data using `get_sheet_data` (sheet: "Weekly"; weekly reports created before the rename still have the tab "Sheet1" — check with `list_sheets` and use the actual tab name)
 2. Parse rows (skip header row, skip Total row)
 3. Filter: keep ONLY rows where the Date falls within the target month
    - Parse date from `MM/DD/YYYY` format
@@ -165,10 +165,11 @@ Ask: "Все вірно? Зберігаю?"
    # Step 1: POST to get redirect URL
    REDIRECT_URL=$(curl -s -o /dev/null -w "%{redirect_url}" -X POST "$APPS_SCRIPT_URL" \
      -H "Content-Type: application/json" \
-     -d '{"action": "create_spreadsheet", "title": "...", "folder_id": "..."}')
+     -d '{"action": "create_spreadsheet", "title": "...", "folder_id": "...", "sheet_name": "Monthly"}')
    # Step 2: GET the redirect URL to receive the JSON response
    curl -s "$REDIRECT_URL"
    ```
+   - **Tab name**: always pass `"sheet_name": "Monthly"` (manager requirement: the bottom tab of a monthly report is `Monthly`). If the response has no `sheet_name`, the deployed Apps Script is old: stop and tell the user to redeploy `apps-script.js`.
 
 4. **Trim unused rows BEFORE writing data** (ALWAYS — template has 35 slots):
    - The shared template (same as weekly-report) has 35 data row slots (rows 2-36)
@@ -191,6 +192,7 @@ Ask: "Все вірно? Зберігаю?"
      formatted report with no extra formatting step.
 
 5. **Write data** using `update_cells` MCP tool (into the trimmed, pre-formatted rows):
+   - Sheet: `sheet: "Monthly"`
    - Row 1: headers `["Worker ID", "Date", "Activity ", "Task Name", "Project", "Details", "Deliverables", "Time"]`
    - Rows 2-N: all aggregated data rows (sorted by date)
    - Last row: Total row — empty cells for columns A-F, "Total" in G, sum of hours in H
@@ -219,6 +221,30 @@ Ask: "Все вірно? Зберігаю?"
    - **Reconciliation**: the `Check` hours MUST equal the monthly Total. If not, stop
      and fix the split before writing.
 
+5.6. **Write Work Days / Days Off block** (MANDATORY — manager requirement, set
+   2026-11-06, requested by colleagues at Orion). Identical placement/logic to the
+   weekly report (see weekly-report SKILL.md Step 6.6), aggregated for the whole month:
+
+   - Placed directly below the percentage summary `Check` row from Step 5.5.
+   - Let **R2** = the `Check` row from Step 5.5.
+   - **Row positions**: R2+1 = `Work Days` (F=label, G=count); R2+2 = `Days Off`
+     (F=label, G=count).
+   - **Work Days** = count of distinct Mon-Fri dates in the target month that have at
+     least one data row across all weekly reports (any hours > 0 that day), PLUS any
+     Mon-Fri weekend/holiday date the user worked (same rule as weekly).
+   - **Days Off** = count of Mon-Fri dates in the target month with NO work (team
+     holiday/PTO, personal day off, vacation, sick leave). This INCLUDES weeks that
+     were entirely days off and therefore never got their own weekly report/spreadsheet
+     — e.g. a full Mon-Fri week with no work still contributes 5 to the monthly Days
+     Off count, per the manager's instruction. Determine these from the work-log /
+     sessions / Jira check in Step 1, or ask the user to confirm an entirely-missing
+     week before counting it as Days Off.
+   - **Reconciliation**: Work Days + Days Off MUST equal the total number of Mon-Fri
+     dates in the target month (the full business-day count for that month, including
+     weeks with no weekly report). If they don't reconcile, stop and ask the user.
+   - **Write with `update_cells`** over range `F{R2+1}:G{R2+2}`. Plain numbers in
+     column G, no `%`, no apostrophe prefix.
+
 6. **Report success** with the spreadsheet URL
 
 ### Step 7: Save Local Copy
@@ -235,7 +261,7 @@ Save to `{reports_dir}/YYYY-MM-monthly.md` with:
 - **Data source is Google Sheets ONLY** — never use local text copies of weekly reports. Users edit Google Sheets manually and those edits must be captured.
 - **Date format in cells**: `MM/DD/YYYY` (US format, consistent with weekly reports)
 - **Date validation**: When reading weekly reports, verify dates are MM/DD/YYYY. If first position > 12 — clearly DD/MM error, alert user. If ambiguous (e.g., `08/06/2026`) — cross-check: does this date match the week range in the spreadsheet title? If not — alert user and ask how to proceed. Never silently copy wrong-format dates into the monthly report.
-- **Only ONE sheet** per spreadsheet (Sheet1)
+- **Only ONE sheet** per spreadsheet, its tab named `Monthly` (not `Sheet1`)
 - **No formulas** — plain values only. Formatting (borders, fonts, WRAP, Deliverables dropdown) comes from the shared template; do NOT add extra formatting via code, and do NOT strip the template's formatting.
 - **Preserve exact text** from weekly reports — do NOT rewrite, summarize, or modify Details column content. Copy rows byte-for-byte as they appear in Google Sheets, even if you see typos or inconsistencies.
 - **Cross-month logic**: when a weekly report spans two months, include only the days belonging to the target month

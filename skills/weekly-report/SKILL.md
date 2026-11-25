@@ -298,7 +298,7 @@ percentage lines. Nothing is folded under `AFFIRM` that was not actually AFFIRM 
    - List spreadsheets in that folder using `list_spreadsheets`
    - Search for a spreadsheet with the EXACT title generated in step 2
    - **If found** → this is an APPEND operation:
-     a. Read existing data with `get_sheet_data` (sheet: "Sheet1")
+     a. Read existing data with `get_sheet_data` (sheet: "Weekly"; for reports created before this rule the tab is still "Sheet1" — check with `list_sheets` and use whatever the single tab is called)
      b. Parse existing rows — extract dates already present (skip header + Total row)
      c. **Detect template placeholder rows**: rows where Date column is empty but other columns have template values (e.g., Deliverables pre-filled) are placeholders — treat them as empty, not as data to preserve
      d. **NEVER modify existing DATA rows** (rows with a filled Date) — keep them exactly as-is, byte-for-byte
@@ -338,11 +338,12 @@ percentage lines. Nothing is folded under `AFFIRM` that was not actually AFFIRM 
      # Step 1: POST to get redirect URL
      REDIRECT_URL=$(curl -s -o /dev/null -w "%{redirect_url}" -X POST "$APPS_SCRIPT_URL" \
        -H "Content-Type: application/json" \
-       -d '{"action": "create_spreadsheet", "title": "...", "folder_id": "..."}')
+       -d '{"action": "create_spreadsheet", "title": "...", "folder_id": "...", "sheet_name": "Weekly"}')
      # Step 2: GET the redirect URL to receive the JSON response
      curl -s "$REDIRECT_URL"
      ```
-   - Response: `{"spreadsheet_id": "...", "url": "..."}`
+   - Response: `{"spreadsheet_id": "...", "url": "...", "sheet_name": "Weekly"}`
+   - **Tab name**: always pass `"sheet_name": "Weekly"`. Manager requirement: the bottom tab of a weekly report is named `Weekly`, not `Sheet1`. If the response has no `sheet_name`, the deployed Apps Script is old: stop and tell the user to redeploy `apps-script.js`.
    - This creates the file owned by the user's account (no quota issues)
 
 5. **Trim unused rows** (ALWAYS for CREATE — the template has 35 slots):
@@ -362,7 +363,7 @@ percentage lines. Nothing is folded under `AFFIRM` that was not actually AFFIRM 
    - **Why before writing**: template rows have dropdown validation (Deliverables column). If Total lands on a row with validation, update_cells fails silently. Trimming first removes those validated cells.
    - Never skip trimming — with a 35-slot template every report has empty slots to remove.
 
-6. **Write data** using `update_cells` (MCP tool, works via service account with shared access):
+6. **Write data** using `update_cells` (MCP tool, works via service account with shared access), with `sheet: "Weekly"` (for an existing older report, use its actual tab name):
    - Row 1: headers `["Worker ID", "Date", "Activity ", "Task Name", "Project", "Details", "Deliverables", "Time"]`
      - Note: "Activity " has a trailing space (matches existing format)
    - Rows 2-N: data rows
@@ -398,6 +399,35 @@ percentage lines. Nothing is folded under `AFFIRM` that was not actually AFFIRM 
    - **Reconciliation check before writing**: the sum of category hours (Check G value)
      MUST equal the report's Total hours. If not, stop and fix the split — never write
      a block whose Check ≠ Total.
+
+6.6. **Write Work Days / Days Off block** (MANDATORY — manager requirement, set 2026-11-06,
+   requested by colleagues at Orion). Applies to both weekly and monthly reports.
+
+   - Placed directly below the percentage summary block (the `Check` row from Step 6.5).
+   - Let **R2** = the `Check` row from Step 6.5 (= R+3+K from that step).
+   - **Row positions**:
+     - R2+1: `Work Days` label in column F, count in column G
+     - R2+2: `Days Off` label in column F, count in column G
+   - **How to count Work Days**: any Mon-Fri day on which actual work happened (any
+     Jira/session/work-log activity, more than 0 hours) counts as 1 Work Day —
+     regardless of how many hours were logged that day. If the user worked on an
+     official weekend or public holiday, that day ALSO counts as a Work Day (it does
+     NOT become a Days Off, and it does not get removed from the report just because
+     it's a holiday).
+   - **How to count Days Off**: a Mon-Fri day where no work happened because of one of:
+     official team holiday/PTO calendar, personal day off, vacation, or sick leave.
+     Days Off are NOT listed as data rows in the table (same as today's behavior) —
+     this count is purely the tally of such days within the report's Mon-Fri range.
+   - **Reconciliation for the weekly report**: Work Days + Days Off MUST equal 5 (the
+     number of weekdays in the report's Mon-Fri week bounds — see the "Week bounds"
+     definition earlier in this file), UNLESS the week is incomplete (requested
+     mid-week per the Date Determination rules), in which case it equals the number
+     of Mon-Fri days up to and including today.
+   - **Write with `update_cells`** over range `F{R2+1}:G{R2+2}`. Values are plain
+     numbers in column G (not text, no `%` suffix, no apostrophe prefix).
+   - A week where the user did not work AT ALL still does not get its own weekly
+     report (unchanged rule) — but see monthly-report SKILL.md for how such a week's
+     5 Days Off are still counted in the MONTHLY total.
 
 7. **Cross-month reports — single-file rule (replaces the old "both folders" behavior)**:
    - A cross-month week is stored in ONE folder at a time. NEVER write the same report
@@ -462,7 +492,7 @@ Read `reports_dir` from work-config.yaml (default: `~/.kiro/work-planning/report
 - **Date validation**: Before writing ANY date, verify it's MM/DD/YYYY (month first, not day). If month position has value > 12 — it's clearly wrong. If ambiguous (e.g., `08/06/2026`) — cross-check against the week's expected dates. Alert user if a mismatch is detected in existing reports.
 - If work-log data is sparse, supplement from Jira and git log
 - Never fabricate work — if a day has no data, ask the user
-- Only ONE sheet per spreadsheet (Sheet1) — no extra sheets
+- Only ONE sheet per spreadsheet — no extra sheets. Its tab is named `Weekly` (not `Sheet1`); pass this name as `sheet` to every `update_cells` / `get_sheet_data` call
 - The spreadsheet should contain ONLY the report data (no formulas, no extra formatting) so Excel export is clean
 - **Business value justification**: If an activity is NOT a Jira ticket or planned company task (e.g., workspace setup, personal tooling, automation skills, productivity improvements), add a brief parenthetical explaining its value to the company. Example: "Created reporting automation skill for use with Kiro CLI. (Within the scope of automating routine operations and possible long-term analysis of work patterns)."
 - **No raw technical metrics in Details**: Do not include raw numbers, file counts, byte sizes, or internal diagnostic data (e.g., "27 files, 120KB"). Report the action and outcome only (e.g., "audited S3 cache, no action needed"). The report audience is management, not engineers.
@@ -488,6 +518,7 @@ list — new activity types get new Project values as they appear):
 | `Technical Design`   | Writing technical design documents (TD) that have NO dedicated Jira ticket |
 | `Tooling/Automation` | Dev environment setup, Kiro skills, routine automation |
 | `Meeting`            | Meetings, stand-ups |
+| `Admin`              | Administrative/HR paperwork not tied to a Jira ticket (e.g. filling out Performance Review forms/questionnaires) |
 
 Rules:
 - Viktor's finished/handed-off projects (BCPD, CRUE, FOTL) MUST NOT appear.
